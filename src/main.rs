@@ -38,13 +38,13 @@ fn request_json(url: &str) -> Result<Value, Box<Error>> {
 }
 
 #[get("/")]
-fn index() -> &'static str {
-    // http://httpbin.org/ip
-    match request_json("https://api.coinmarketcap.com/v1/global/") {
-        Ok(_) => (),
-        Err(e) => println!("{:?}", e),
-    }
-    "ok"
+fn index() -> String {
+    // .to_string: &str -> String 
+    // .as_str: String -> &str
+    
+    let ret = request_json("https://api.coinmarketcap.com/v1/global/").unwrap();
+
+    format!("{:?}", ret)
 }
 
 fn main() {
