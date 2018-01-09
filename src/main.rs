@@ -9,6 +9,7 @@ extern crate tokio_core;
 extern crate rocket;
 
 pub mod api;
+mod utils;
 
 fn main() {
     rocket::ignite()
