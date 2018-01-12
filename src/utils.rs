@@ -16,6 +16,7 @@ use self::hyper_tls::HttpsConnector;
 use self::tokio_core::reactor::{Core, Timeout};
 use self::serde_json::Value as Json;
 use self::toml::Value as Toml;
+use diesel::prelude::*;
 
 pub fn request_json(url: &str, timeout: u64) -> Result<Json, Box<Error>> {
     let mut core = Core::new()?;
@@ -85,4 +86,8 @@ pub fn json_from_tomlfile(filename: &str) -> Json {
         .parse()
         .map(toml2json)
         .expect("Error converting toml to json")
+}
+
+pub fn db_conn(uri: &str) -> MysqlConnection {
+    MysqlConnection::establish(uri).expect(&format!("Error connecting to {}", uri))
 }
