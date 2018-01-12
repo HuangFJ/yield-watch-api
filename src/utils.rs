@@ -79,7 +79,7 @@ pub fn json_from_tomlfile(filename: &str) -> Json {
                 .expect("Error reading file content");
             Ok(())
         })
-        .expect(&format!("Error opening {}", filename);
+        .expect(&format!("Error opening {}", filename));
 
     input
         .parse()
