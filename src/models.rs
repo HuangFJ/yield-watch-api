@@ -33,18 +33,8 @@ pub struct NewCoin<'a> {
 
 impl<'a> NewCoin<'a> {
     pub fn save(&self, conn: &MysqlConnection) {
-        let new = NewCoin {
-            id: self.id,
-            name: self.name,
-            symbol: self.symbol,
-            rank: self.rank,
-            available_supply: self.available_supply,
-            total_supply: self.total_supply,
-            max_supply: self.max_supply,
-            last_updated: self.last_updated,
-        };
         let ret = diesel::insert_into(coins::table)
-            .values(&new)
+            .values(self)
             .execute(conn)
             .unwrap();
         println!("{:?}", ret);
