@@ -32,7 +32,7 @@ pub fn request_json(url: &str, timeout: u64) -> Result<Json, Box<Error>> {
             serde_json::from_slice(&body).map_err(|_| {
                 hyper::Error::Io(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    "Fail while converting to json",
+                    "Error converting to json",
                 ))
             })
         })
@@ -76,13 +76,13 @@ pub fn json_from_tomlfile(filename: &str) -> Json {
     File::open(filename)
         .and_then(|mut file| {
             file.read_to_string(&mut input)
-                .expect("Can't read file content");
+                .expect("Error reading file content");
             Ok(())
         })
-        .expect(format!("Failed to open file {}", filename).as_str());
+        .expect(&format!("Error opening {}", filename);
 
     input
         .parse()
         .map(toml2json)
-        .expect("Failed while converting toml to json")
+        .expect("Error converting toml to json")
 }
