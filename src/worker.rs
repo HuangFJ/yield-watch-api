@@ -19,8 +19,11 @@ fn mysql_uri() -> String {
 }
 
 fn main() {
-    use schema::coins::dsl::{coins, id};
-    let conn = utils::db_conn(&mysql_uri());
-    let coin: Coin = coins.first(&conn).unwrap();
-    println!("{:?}", coin);
+    use schema::coins::dsl::coins;
+    let conn = models::db_conn(&mysql_uri());
+
+    Coin::add(&conn, "net", "nimiq", "NET", 12, 13243, 34343, None, 1);
+
+    let all_coins = coins.load::<Coin>(&conn).unwrap();
+    println!("{:?}", all_coins);
 }
