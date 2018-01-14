@@ -4,10 +4,6 @@ version = "0.1.0"
 authors = ["Jon Huang <biohfj@gmail.com>"]
 
 [[bin]]
-name = "worker"
-path = "src/worker.rs"
-
-[[bin]]
 name = "main"
 path = "src/main.rs"
 

@@ -5,12 +5,10 @@ use rocket::http::Status;
 use rocket::request::{self, FromRequest};
 use rocket::{Outcome, Request, State};
 
-use models::{Pool, Coin};
+use models::{Coin, Pool, PoolConn};
 use diesel::prelude::*;
-use r2d2;
-use r2d2_diesel::ConnectionManager;
 
-pub struct DbConn(pub r2d2::PooledConnection<ConnectionManager<MysqlConnection>>);
+pub struct DbConn(pub PoolConn);
 
 impl<'a, 'r> FromRequest<'a, 'r> for DbConn {
     type Error = ();

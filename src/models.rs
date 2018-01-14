@@ -4,6 +4,7 @@ use r2d2_diesel::ConnectionManager;
 use r2d2;
 
 pub type Pool = r2d2::Pool<ConnectionManager<MysqlConnection>>;
+pub type PoolConn = r2d2::PooledConnection<ConnectionManager<MysqlConnection>>;
 
 pub fn init_pool(uri: &str) -> Pool {
     r2d2::Pool::new(ConnectionManager::<MysqlConnection>::new(uri)).expect("Failed to create pool")

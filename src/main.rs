@@ -1,6 +1,10 @@
-#![feature(plugin)]
+#![feature(plugin, core_intrinsics)]
 #![plugin(rocket_codegen)]
 #![allow(dead_code)]
+
+fn type_of<T>(_: &T) -> &'static str {
+    unsafe { std::intrinsics::type_name::<T>() }
+}
 
 #[macro_use]
 extern crate diesel;
@@ -17,17 +21,29 @@ mod utils;
 mod schema;
 mod models;
 mod api;
+mod worker;
 
-use rocket::fairing::AdHoc;
+use std::{thread, time};
 
 fn main() {
-    rocket::ignite()
-        .attach(AdHoc::on_attach(|rocket| {
-            let config = rocket.config().clone();
-            Ok(rocket
-                .manage(models::init_pool(config.get_str("mysql").unwrap()))
-                .manage(config))
-        }))
+    let server = rocket::ignite();
+    let config = server.config().clone();
+
+    let pool = models::init_pool(config.get_str("mysql").unwrap());
+    let pool_tx = pool.clone();
+
+    thread::spawn(move || loop {
+        match worker::refresh_coins(&pool_tx) {
+            Ok(_) => (),
+            Err(e) => println!("Error while refreshing coins: {}", &*e.to_string()),
+        }
+        println!("Sleep 300 secs for next refreshing coins...");
+        thread::sleep(time::Duration::from_secs(300));
+        break;
+    });
+    server
+        .manage(pool)
+        .manage(config)
         .mount("/api", routes![api::index])
         .launch();
 }
