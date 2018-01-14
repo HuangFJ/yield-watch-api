@@ -1,0 +1,34 @@
+[global]
+# The "global" pseudo-environment can be used to set and/or override configuration parameters globally.
+# tls = { certs = "/path/to/certs.pem", key = "/path/to/key.pem" }
+
+[global.tls]
+# a path to a certificate chain in PEM format
+certs = "./.tls/watch.yield.newfish.com.pem"
+# a path to a private key file in PEM format for the certificate in certs
+key = "./.tls/watch.yield.newfish.com.key"
+
+[development]
+address = "watch.yield.newfish.com"
+port = 8000
+# workers = [number of cpus * 2]
+log = "normal"
+# secret_key = [randomly generated at launch]
+limits = { forms = 32768 }
+mysql = "mysql://jon@127.0.0.1:3306/yield"
+
+[staging]
+address = "watch.yield.newfish.com"
+port = 80
+# workers = [number of cpus * 2]
+log = "normal"
+# secret_key = [randomly generated at launch]
+limits = { forms = 32768 }
+
+[production]
+address = "watch.yield.newfish.com"
+port = 80
+# workers = [number of cpus * 2]
+log = "critical"
+# secret_key = [randomly generated at launch]
+limits = { forms = 32768 }
