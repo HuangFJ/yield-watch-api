@@ -17,10 +17,10 @@ use self::tokio_core::reactor::{Core, Timeout};
 use self::serde_json::Value as Json;
 use self::toml::Value as Toml;
 
-pub fn request_json(url: &str, timeout: u64) -> Result<Json, Box<Error>> {
+pub fn request_json(url: &str, timeout: Option<u64>) -> Result<Json, Box<Error>> {
     let mut core = Core::new()?;
     let handle = core.handle();
-    let timeout = Timeout::new(Duration::from_secs(timeout), &handle)?;
+    let timeout = Timeout::new(Duration::from_secs(timeout.unwrap_or(30u64)), &handle)?;
     let client = Client::configure()
         .connector(HttpsConnector::new(4, &handle)?)
         .build(&handle);
