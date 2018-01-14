@@ -3,3 +3,4 @@
 **/*.rs.bk
 Cargo.lock
 Rocket.toml
+INSTALL.md
