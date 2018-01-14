@@ -1,3 +1,10 @@
+#![feature(core_intrinsics)]
+
+#[allow(dead_code)]
+fn type_of<T>(_: &T) -> &'static str {
+    unsafe { std::intrinsics::type_name::<T>() }
+}
+
 #[macro_use]
 extern crate diesel;
 
@@ -7,6 +14,7 @@ pub mod models;
 
 use diesel::prelude::*;
 use models::{Coin, NewCoin};
+use diesel::result::Error;
 
 fn mysql_uri() -> String {
     let json = utils::json_from_tomlfile("Rocket.toml");
@@ -19,21 +27,24 @@ fn mysql_uri() -> String {
 }
 
 fn main() {
-    use schema::coins::dsl::coins;
+    let values = vec![
+        NewCoin {
+            id: "nim",
+            name: "nimiq",
+            symbol: "NET",
+            rank: 12,
+            available_supply: 13243,
+            total_supply: 34343,
+            max_supply: None,
+            last_updated: 1,
+        },
+    ];
+
     let conn = models::db_conn(&mysql_uri());
 
-    let coin = NewCoin {
-        id: "net",
-        name: "nimiq",
-        symbol: "NET",
-        rank: 12,
-        available_supply: 13243,
-        total_supply: 34343,
-        max_supply: None,
-        last_updated: 1,
-    };
-    coin.save(&conn);
+    conn.test_transaction::<_, Error, _>(|| {
+        models::insert_coins(&conn, &values);
 
-    let all_coins = coins.load::<Coin>(&conn).unwrap();
-    println!("{:?}", all_coins);
+        Ok(())
+    })
 }
