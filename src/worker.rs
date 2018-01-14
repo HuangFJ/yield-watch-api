@@ -13,7 +13,7 @@ pub mod schema;
 pub mod models;
 
 use diesel::prelude::*;
-use models::{Coin, NewCoin};
+use models::Coin;
 use diesel::result::Error;
 
 fn mysql_uri() -> String {
@@ -27,24 +27,24 @@ fn mysql_uri() -> String {
 }
 
 fn main() {
-    let values = vec![
-        NewCoin {
-            id: "nim",
-            name: "nimiq",
-            symbol: "NET",
-            rank: 12,
-            available_supply: 13243,
-            total_supply: 34343,
-            max_supply: None,
-            last_updated: 1,
-        },
-    ];
+    use schema::coins::dsl::*;
 
     let conn = models::db_conn(&mysql_uri());
 
-    conn.test_transaction::<_, Error, _>(|| {
-        models::insert_coins(&conn, &values);
+    conn.test_transaction::<Coin, Error, _>(|| {
+        let inserted_count = diesel::insert_into(coins)
+            .values((
+                id.eq("nim"),
+                name.eq("nimiq"),
+                symbol.eq("NET"),
+                rank.eq(12),
+                available_supply.eq(13243),
+                total_supply.eq(34343),
+                last_updated.eq(1),
+            ))
+            .execute(&conn);
+        println!("{:?}", inserted_count);
 
-        Ok(())
-    })
+        coins.first(&conn)
+    });
 }
