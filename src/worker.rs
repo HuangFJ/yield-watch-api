@@ -13,8 +13,8 @@ pub mod schema;
 pub mod models;
 
 use diesel::prelude::*;
-use models::Coin;
 use diesel::result::Error;
+use models::Coin;
 
 fn mysql_uri() -> String {
     let json = utils::json_from_tomlfile("Rocket.toml");
