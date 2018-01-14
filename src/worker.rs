@@ -31,7 +31,7 @@ fn main() {
 
     let conn = models::db_conn(&mysql_uri());
 
-    conn.test_transaction::<Coin, Error, _>(|| {
+    let coin = conn.test_transaction::<Coin, Error, _>(|| {
         let inserted_count = diesel::insert_into(coins)
             .values((
                 id.eq("nim"),
@@ -43,8 +43,10 @@ fn main() {
                 last_updated.eq(1),
             ))
             .execute(&conn);
-        println!("{:?}", inserted_count);
+        println!("Mysql insert: {:?}", inserted_count);
 
         coins.first(&conn)
     });
+
+    println!("{:?}", coin);
 }
