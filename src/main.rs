@@ -45,11 +45,11 @@ fn main() {
     });
     // 每隔6秒获取一次币的价格历史数据
     thread::spawn(move||loop {
-        match worker::refresh_prices(&pool_tx2) {
-            Ok(_) => (),
-            Err(e) => println!("Error while refreshing prices: {}", &*e.to_string()),
-        }
-        thread::sleep(time::Duration::from_secs(6));
+        let sleep_secs = match worker::refresh_prices(&pool_tx2) {
+            Ok(secs) => secs,
+            Err(e) => {println!("Error while refreshing prices: {}", &*e.to_string()); 6},
+        };
+        thread::sleep(time::Duration::from_secs(sleep_secs));
     });
     // 每隔1天刷新一次汇率
     thread::spawn(move||loop {

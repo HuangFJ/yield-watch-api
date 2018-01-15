@@ -43,7 +43,7 @@ pub fn refresh_coins(pool: &Pool) -> Result<(), Box<Error>> {
     Ok(())
 }
 
-pub fn refresh_prices(pool: &Pool) -> Result<(), Box<Error>> {
+pub fn refresh_prices(pool: &Pool) -> Result<u64, Box<Error>> {
     let mut result = pool.prep_exec(
         "SELECT t1.id,t1.last_updated,t2.max_updated \
         FROM coins t1 \
@@ -53,10 +53,10 @@ pub fn refresh_prices(pool: &Pool) -> Result<(), Box<Error>> {
         ON t1.last_updated=t2.min_updated \
         LIMIT 1", ())?;
     let (id, last_updated, max_updated): (String, i64, i64) = mysql::from_row(result.next().unwrap()?);
+    let mut max_updated = max_updated;
 
     let now = time::get_time().sec;
-    if now - max_updated > 10 {
-        println!("{} secs past since last fetching", now - max_updated);
+    if now - max_updated >= 8 {
         println!("Fetching {} between {} and {}", id, last_updated, now);
         let start = last_updated * 1000;
         let end = now * 1000;
@@ -89,7 +89,13 @@ pub fn refresh_prices(pool: &Pool) -> Result<(), Box<Error>> {
 
         pool.prep_exec(sql_string, params)?;
         pool.prep_exec("UPDATE coins SET last_updated=? WHERE id=?", (now, id))?;
+        max_updated = now;
     }
 
-    Ok(())
+    let mut sleep_secs = 8 - (time::get_time().sec - max_updated);
+    if sleep_secs < 0 {
+        sleep_secs = 0;
+    }
+    println!("Waiting {} secs more", sleep_secs);
+    Ok(sleep_secs as u64)
 }
