@@ -16,6 +16,7 @@ extern crate r2d2_diesel;
 extern crate rocket;
 extern crate serde_json;
 extern crate tokio_core;
+extern crate mysql;
 
 mod utils;
 mod schema;
@@ -29,8 +30,9 @@ fn main() {
     let server = rocket::ignite();
     let config = server.config().clone();
 
-    let pool = models::init_pool(config.get_str("mysql").unwrap());
-    let pool_tx = pool.clone();
+    let mysql_uri = config.get_str("mysql").unwrap();
+    let pool_mysql = mysql::Pool::new(mysql_uri).unwrap();
+    let pool_tx = pool_mysql.clone();
 
     thread::spawn(move || loop {
         match worker::refresh_coins(&pool_tx) {
@@ -39,11 +41,10 @@ fn main() {
         }
         println!("Sleep 300 secs for next refreshing coins...");
         thread::sleep(time::Duration::from_secs(300));
-        break;
     });
     server
-        .manage(pool)
-        .manage(config)
+        .manage(models::init_pool(mysql_uri))
+        .manage(config.clone())
         .mount("/api", routes![api::index])
         .launch();
 }
