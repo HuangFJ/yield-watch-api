@@ -18,9 +18,10 @@ use self::serde_json::Value as Json;
 use self::toml::Value as Toml;
 
 pub fn request_json(url: &str, timeout: Option<u64>) -> Result<Json, Box<Error>> {
+    println!("Request: {}", url);
     let mut core = Core::new()?;
     let handle = core.handle();
-    let timeout = Timeout::new(Duration::from_secs(timeout.unwrap_or(30u64)), &handle)?;
+    let timeout = Timeout::new(Duration::from_secs(timeout.unwrap_or(60u64)), &handle)?;
     let client = Client::configure()
         .connector(HttpsConnector::new(4, &handle)?)
         .build(&handle);

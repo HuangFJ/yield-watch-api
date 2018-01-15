@@ -53,10 +53,11 @@ pub fn refresh_prices(pool: &Pool) -> Result<(), Box<Error>> {
         ON t1.last_updated=t2.min_updated \
         LIMIT 1", ())?;
     let (id, last_updated, max_updated): (String, i64, i64) = mysql::from_row(result.next().unwrap()?);
-    println!("Checking {} {} {}", id, last_updated, max_updated);
 
     let now = time::get_time().sec;
     if now - max_updated > 10 {
+        println!("{} secs past since last fetching", now - max_updated);
+        println!("Fetching {} between {} and {}", id, last_updated, now);
         let start = last_updated * 1000;
         let end = now * 1000;
         let json = utils::request_json(&format!("https://graphs.coinmarketcap.com/currencies/{}/{}/{}/", id, start, end), None)?;

@@ -41,7 +41,6 @@ fn main() {
             Ok(_) => (),
             Err(e) => println!("Error while refreshing coins: {}", &*e.to_string()),
         }
-        println!("Endpoints update every 5 minutes...");
         thread::sleep(time::Duration::from_secs(300));
     });
     // 每隔6秒获取一次币的价格历史数据
@@ -50,7 +49,6 @@ fn main() {
             Ok(_) => (),
             Err(e) => println!("Error while refreshing prices: {}", &*e.to_string()),
         }
-        println!("Please limit requests to no more than 10 per minute...");
         thread::sleep(time::Duration::from_secs(6));
     });
     // 每隔1天刷新一次汇率
@@ -59,7 +57,6 @@ fn main() {
             Ok(_) => (),
             Err(e) => println!("Error while refreshing rates: {}", &*e.to_string()),
         }
-        println!("Update every day...");
         thread::sleep(time::Duration::from_secs(86400));
     });
     server
