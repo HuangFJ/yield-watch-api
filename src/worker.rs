@@ -6,7 +6,7 @@ use std::error::Error;
 use std::sync::{Arc, RwLock};
 use serde_json::Value as Json;
 
-pub struct SharedCoins(pub Json);
+pub struct SharedCoins(pub Vec<Json>);
 pub struct SharedRates(pub Json);
 
 pub fn refresh_rates(rates_lock: &Arc<RwLock<SharedRates>>) -> Result<(), Box<Error>> {
@@ -26,12 +26,13 @@ pub fn refresh_coins(pool: &Pool, coins_lock: &Arc<RwLock<SharedCoins>>) -> Resu
         "https://api.coinmarketcap.com/v1/ticker/?convert=CNY&limit=10000",
         None,
     )?;
+    let data = json.as_array().unwrap();
 
     let mut sql_string = String::from(
         "INSERT INTO coins (id,name,symbol,rank,available_supply,total_supply,max_supply) VALUES ",
     );
     let mut params = vec![];
-    for item in json.as_array().unwrap() {
+    for item in data {
         sql_string.push_str("(?,?,?,?,?,?,?),");
         params.push(item["id"].as_str().unwrap_or(""));
         params.push(item["name"].as_str().unwrap_or(""));
@@ -56,7 +57,7 @@ pub fn refresh_coins(pool: &Pool, coins_lock: &Arc<RwLock<SharedCoins>>) -> Resu
     pool.prep_exec(sql_string, params)?;
     {
         let mut coins = coins_lock.write().unwrap();
-        (*coins).0 = json.clone();
+        (*coins).0 = data.clone();
     }
 
     Ok(())
@@ -80,8 +81,8 @@ pub fn refresh_prices(pool: &Pool) -> Result<u64, Box<Error>> {
     let mut max_updated = max_updated;
 
     let now = time::get_time().sec;
-    // 接口请求间隔时间限制在8秒
-    if now - max_updated >= 8 {
+    // 接口请求间隔时间限制在7秒
+    if now - max_updated >= 7 {
         println!("Fetching {} between {} and {}", id, last_updated, now);
         let start = last_updated * 1000;
         let end = now * 1000;
@@ -138,7 +139,7 @@ pub fn refresh_prices(pool: &Pool) -> Result<u64, Box<Error>> {
         max_updated = now;
     }
 
-    let mut sleep_secs = 8 - (time::get_time().sec - max_updated);
+    let mut sleep_secs = 7 - (time::get_time().sec - max_updated);
     if sleep_secs < 0 {
         sleep_secs = 0;
     }

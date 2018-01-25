@@ -1,8 +1,14 @@
 use worker;
-use rocket::State;
+use rocket::{Config, State};
 use std::sync::{Arc, RwLock};
 use mysql::{self, Pool};
 use rocket_contrib::{Json, Value};
+use std::collections::HashMap;
+use rocket_contrib::Template;
+use rocket::http::{Cookie, Cookies};
+use rocket::request::Form;
+use rocket::response::{Flash, Redirect};
+use time;
 
 #[derive(Serialize, Deserialize)]
 struct UserCoin {
@@ -12,6 +18,12 @@ struct UserCoin {
     balance_cny: f64,
 }
 
+#[derive(FromForm)]
+struct Login {
+    username: String,
+    password: String,
+}
+
 #[get("/")]
 fn index(
     mysql_pool: State<Pool>,
@@ -19,8 +31,7 @@ fn index(
     rates_lock: State<Arc<RwLock<worker::SharedRates>>>,
 ) -> Json<Value> {
     let coins_shared = coins_lock.read().unwrap();
-    let coins_json = &(*coins_shared).0;
-    let coins_array = coins_json.as_array().unwrap();
+    let coins_array = &(*coins_shared).0;
 
     let rates_shared = rates_lock.read().unwrap();
     let rates_json = &(*rates_shared).0;
@@ -58,4 +69,34 @@ fn index(
         "total_balance": total_balance,
         "detail": user_states
     }))
+}
+
+#[get("/login")]
+fn login_page() -> Template {
+    let mut context = HashMap::new();
+    context.insert("flash", "hi!");
+
+    Template::render("login", &context)
+}
+
+#[post("/login", data = "<login>")]
+fn login_post(mut cookies: Cookies, login: Form<Login>, cnf: State<Config>) -> Flash<Redirect> {
+    let cookie_max_age_hours =
+        time::Duration::hours(cnf.get_int("cookie_max_age_hours").unwrap_or(24));
+    let cookie_domain = cnf.address.clone();
+
+    if login.get().username == "jon" && login.get().password == "" {
+        cookies.add_private(
+            Cookie::build("sess_id", 1.to_string())
+                .domain(cookie_domain)
+                .path("/")
+                .secure(true)
+                .http_only(true)
+                .max_age(cookie_max_age_hours)
+                .finish(),
+        );
+        Flash::success(Redirect::to("/api"), "Successfully logged in.")
+    } else {
+        Flash::error(Redirect::to("/login"), "Invalid username/password.")
+    }
 }
