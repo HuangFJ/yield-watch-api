@@ -16,6 +16,7 @@ log = "normal"
 # secret_key = [randomly generated at launch]
 limits = { forms = 32768 }
 mysql = "mysql://jon@127.0.0.1:3306/yield"
+cookie_max_age_hours = 48
 
 [staging]
 address = "watch.yield.newfish.com"

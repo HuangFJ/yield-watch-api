@@ -14,10 +14,14 @@ extern crate r2d2;
 extern crate rocket;
 extern crate rocket_contrib;
 extern crate serde;
-#[macro_use] extern crate serde_json;
-#[macro_use] extern crate serde_derive;
-extern crate tokio_core;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
+extern crate serde_json;
 extern crate time;
+extern crate tokio_core;
+extern crate bigdecimal;
+extern crate num;
 
 mod utils;
 mod api;
@@ -35,11 +39,15 @@ fn main() {
     let pool_tx1 = pool_mysql.clone();
     let pool_tx2 = pool_mysql.clone();
 
+    let worker_state_lock = Arc::new(RwLock::new(worker::State {
+        usd2cny_rate: 0.0,
+        coins: vec![],
+    }));
+    let worker_state_lock_tx1 = worker_state_lock.clone();
+    let worker_state_lock_tx2 = worker_state_lock.clone();
     // 每隔5分钟刷新一次币列表
-    let coins_lock = Arc::new(RwLock::new(worker::SharedCoins(vec![])));
-    let coins_lock_tx1 = coins_lock.clone();
     thread::spawn(move || loop {
-        match worker::refresh_coins(&pool_tx1, &coins_lock_tx1) {
+        match worker::refresh_coins(&pool_tx1, &worker_state_lock_tx1) {
             Ok(_) => (),
             Err(e) => println!("Error while refreshing coins: {}", &*e.to_string()),
         }
@@ -57,10 +65,8 @@ fn main() {
         thread::sleep(stdtime::Duration::from_secs(sleep_secs));
     });
     // 每隔1天刷新一次汇率
-    let rates_lock = Arc::new(RwLock::new(worker::SharedRates(json!(null))));
-    let rates_lock_tx = rates_lock.clone();
     thread::spawn(move || loop {
-        match worker::refresh_rates(&rates_lock_tx) {
+        match worker::refresh_rates(&worker_state_lock_tx2) {
             Ok(_) => (),
             Err(e) => println!("Error while refreshing rates: {}", &*e.to_string()),
         }
@@ -69,9 +75,11 @@ fn main() {
     server
         .manage(pool_mysql)
         .manage(config)
-        .manage(coins_lock)
-        .manage(rates_lock)
+        .manage(worker_state_lock)
         .attach(Template::fairing())
-        .mount("/api", routes![api::index, api::login_page, api::login_post])
+        .mount(
+            "/api",
+            routes![api::index, api::login_page, api::login_post],
+        )
         .launch();
 }

@@ -1,46 +1,119 @@
-extern crate time;
-
-use mysql::{self, Pool, Value};
-use utils;
+use std::str::FromStr;
 use std::error::Error;
 use std::sync::{Arc, RwLock};
-use serde_json::Value as Json;
+use serde_json;
+use mysql::{self, Pool, Value};
+use bigdecimal::BigDecimal;
+use time;
 
-pub struct SharedCoins(pub Vec<Json>);
-pub struct SharedRates(pub Json);
+use utils;
 
-pub fn refresh_rates(rates_lock: &Arc<RwLock<SharedRates>>) -> Result<(), Box<Error>> {
+#[derive(Debug)]
+pub struct Coin {
+    pub id: String,
+    pub name: String,
+    pub symbol: String,
+    pub rank: i64,
+    pub price_usd: BigDecimal,
+    pub price_btc: BigDecimal,
+    pub volume_usd: BigDecimal,
+    pub market_cap_usd: BigDecimal,
+    pub available_supply: f64,
+    pub total_supply: f64,
+    pub max_supply: f64,
+    pub percent_change_1h: f64,
+    pub percent_change_24h: f64,
+    pub percent_change_7d: f64,
+    pub last_updated: i64,
+    pub price_cny: BigDecimal,
+    pub volume_cny: BigDecimal,
+    pub market_cap_cny: BigDecimal,
+}
+
+impl Coin {
+    fn from_json(j: &serde_json::Value) -> Coin {
+        Coin {
+            id: (j["id"]).as_str().unwrap().into(),
+            name: j["name"].as_str().unwrap().into(),
+            symbol: j["symbol"].as_str().unwrap().into(),
+            rank: j["rank"].as_str().unwrap().parse().unwrap(),
+            price_usd: BigDecimal::from_str(j["price_usd"].as_str().unwrap_or("0")).unwrap(),
+            price_btc: BigDecimal::from_str(j["price_btc"].as_str().unwrap_or("0")).unwrap(),
+            volume_usd: BigDecimal::from_str(j["24h_volume_usd"].as_str().unwrap_or("0")).unwrap(),
+            market_cap_usd: BigDecimal::from_str(j["market_cap_usd"].as_str().unwrap_or("0"))
+                .unwrap(),
+            available_supply: j["available_supply"]
+                .as_str()
+                .unwrap_or("0")
+                .parse()
+                .unwrap(),
+            total_supply: j["total_supply"].as_str().unwrap_or("0").parse().unwrap(),
+            max_supply: j["max_supply"].as_str().unwrap_or("0").parse().unwrap(),
+            percent_change_1h: j["percent_change_1h"]
+                .as_str()
+                .unwrap_or("0")
+                .parse()
+                .unwrap(),
+            percent_change_24h: j["percent_change_24h"]
+                .as_str()
+                .unwrap_or("0")
+                .parse()
+                .unwrap(),
+            percent_change_7d: j["percent_change_7d"]
+                .as_str()
+                .unwrap_or("0")
+                .parse()
+                .unwrap(),
+            last_updated: j["last_updated"].as_str().unwrap_or("0").parse().unwrap(),
+            price_cny: BigDecimal::from_str(j["price_cny"].as_str().unwrap_or("0")).unwrap(),
+            volume_cny: BigDecimal::from_str(j["24h_volume_cny"].as_str().unwrap_or("0")).unwrap(),
+            market_cap_cny: BigDecimal::from_str(j["market_cap_cny"].as_str().unwrap_or("0"))
+                .unwrap(),
+        }
+    }
+}
+
+pub struct State {
+    pub usd2cny_rate: f64,
+    pub coins: Vec<Coin>,
+}
+
+pub fn refresh_rates(lock: &Arc<RwLock<State>>) -> Result<(), Box<Error>> {
     // 获取汇率
-    let json = utils::request_json("https://api.fixer.io/latest?base=USD", None)?;
+    let value = utils::request_json("https://api.fixer.io/latest?base=USD", None)?;
 
     {
-        let mut rates = rates_lock.write().unwrap();
-        (*rates).0 = json;
+        let mut state = lock.write().unwrap();
+        (*state).usd2cny_rate = value["rates"]["CNY"].as_f64().unwrap();
     }
     Ok(())
 }
 
-pub fn refresh_coins(pool: &Pool, coins_lock: &Arc<RwLock<SharedCoins>>) -> Result<(), Box<Error>> {
+pub fn refresh_coins(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<Error>> {
     // 所有加密币的即时数据
-    let json = utils::request_json(
+    let value = utils::request_json(
         "https://api.coinmarketcap.com/v1/ticker/?convert=CNY&limit=10000",
         None,
     )?;
-    let data = json.as_array().unwrap();
 
     let mut sql_string = String::from(
         "INSERT INTO coins (id,name,symbol,rank,available_supply,total_supply,max_supply) VALUES ",
     );
+    let mut data: Vec<Coin> = vec![];
     let mut params = vec![];
-    for item in data {
+
+    for row in value.as_array().unwrap().iter() {
+        let item = Coin::from_json(row);
         sql_string.push_str("(?,?,?,?,?,?,?),");
-        params.push(item["id"].as_str().unwrap_or(""));
-        params.push(item["name"].as_str().unwrap_or(""));
-        params.push(item["symbol"].as_str().unwrap_or(""));
-        params.push(item["rank"].as_str().unwrap_or("0"));
-        params.push(item["available_supply"].as_str().unwrap_or("0"));
-        params.push(item["total_supply"].as_str().unwrap_or("0"));
-        params.push(item["max_supply"].as_str().unwrap_or("null"));
+        // Vec只能存同类型元素，把原始各种类型封装为mysql的Value类型
+        params.push(Value::from(item.id.clone()));
+        params.push(Value::from(item.name.clone()));
+        params.push(Value::from(item.symbol.clone()));
+        params.push(Value::from(item.rank));
+        params.push(Value::from(item.available_supply));
+        params.push(Value::from(item.total_supply));
+        params.push(Value::from(item.max_supply));
+        data.push(item);
     }
     sql_string.pop();
     sql_string.push_str(
@@ -56,8 +129,8 @@ pub fn refresh_coins(pool: &Pool, coins_lock: &Arc<RwLock<SharedCoins>>) -> Resu
 
     pool.prep_exec(sql_string, params)?;
     {
-        let mut coins = coins_lock.write().unwrap();
-        (*coins).0 = data.clone();
+        let mut state = lock.write().unwrap();
+        (*state).coins = data;
     }
 
     Ok(())
@@ -102,7 +175,10 @@ pub fn refresh_prices(pool: &Pool) -> Result<u64, Box<Error>> {
             }
         };
 
-        let mut sql_string = String::from("INSERT IGNORE INTO prices (coin_id,price_usd,volume_usd,price_btc,price_platform,created) VALUES ");
+        let mut sql_string = String::from(
+            "INSERT IGNORE INTO prices \
+             (coin_id,price_usd,volume_usd,price_btc,price_platform,created) VALUES ",
+        );
         let mut params = vec![];
 
         for (idx, price_usd) in json["price_usd"].as_array().unwrap().iter().enumerate() {
@@ -110,12 +186,12 @@ pub fn refresh_prices(pool: &Pool) -> Result<u64, Box<Error>> {
 
             let ts = price_usd[0].as_u64().unwrap() / 1000;
             let p_usd = price_usd[1].as_f64().unwrap();
-            let p_btc = json["price_btc"][idx][1].as_f64().unwrap();
-            let v_usd = json["volume_usd"][idx][1].as_f64().unwrap();
+            let p_btc = json["price_btc"][idx][1].as_f64().unwrap_or(0.0);
+            let v_usd = json["volume_usd"][idx][1].as_f64().unwrap_or(0.0);
             let p_platform = if json["price_platform"].is_array() {
-                Value::from(json["price_platform"][idx][1].as_f64().unwrap())
+                Value::from(json["price_platform"][idx][1].as_f64().unwrap_or(0.0))
             } else {
-                Value::from("null")
+                Value::from(0.0)
             };
 
             params.push(Value::from(&id));

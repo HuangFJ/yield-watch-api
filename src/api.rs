@@ -1,14 +1,17 @@
-use worker;
-use rocket::{Config, State};
-use std::sync::{Arc, RwLock};
-use mysql::{self, Pool};
-use rocket_contrib::{Json, Value};
-use std::collections::HashMap;
-use rocket_contrib::Template;
-use rocket::http::{Cookie, Cookies};
-use rocket::request::Form;
-use rocket::response::{Flash, Redirect};
 use time;
+use num::ToPrimitive;
+use std::sync::{Arc, RwLock};
+use std::collections::HashMap;
+use mysql::{self, Pool};
+
+use rocket::{Config, State};
+use rocket::outcome::IntoOutcome;
+use rocket::http::{Cookie, Cookies};
+use rocket::request::{Form, FromRequest, Outcome as ReqOutcome, Request};
+use rocket::response::{Flash, Redirect};
+use rocket_contrib::{Json, Template, Value};
+
+use worker;
 
 #[derive(Serialize, Deserialize)]
 struct UserCoin {
@@ -24,19 +27,30 @@ struct Login {
     password: String,
 }
 
+struct User {
+    id: i64,
+}
+
+impl<'a, 'r> FromRequest<'a, 'r> for User {
+    type Error = ();
+    fn from_request(request: &'a Request<'r>) -> ReqOutcome<User, ()> {
+        let mysql_pool = request.guard::<State<Pool>>()?;
+        request
+            .cookies()
+            .get_private("sess_id")
+            .and_then(|cookie| cookie.value().parse().ok())
+            .map(|sess_id| User { id: sess_id })
+            .or_forward(())
+    }
+}
+
 #[get("/")]
 fn index(
     mysql_pool: State<Pool>,
-    coins_lock: State<Arc<RwLock<worker::SharedCoins>>>,
-    rates_lock: State<Arc<RwLock<worker::SharedRates>>>,
+    worker_state_lock: State<Arc<RwLock<worker::State>>>,
 ) -> Json<Value> {
-    let coins_shared = coins_lock.read().unwrap();
-    let coins_array = &(*coins_shared).0;
-
-    let rates_shared = rates_lock.read().unwrap();
-    let rates_json = &(*rates_shared).0;
-    let usd2cny = rates_json["rates"]["CNY"].as_f64().unwrap();
-
+    let worker_state = &*(worker_state_lock.read().unwrap());
+    println!("Original address: {:p}", worker_state);
     let mut total_balance = 0f64;
 
     let user_states: Vec<UserCoin> = mysql_pool
@@ -48,11 +62,11 @@ fn index(
             ret.map(|x| x.unwrap())
                 .map(|row| {
                     let (coin_id, amount, created): (String, f64, i32) = mysql::from_row(row);
-                    let seek = coins_array.into_iter().find(|&x| x["id"] == coin_id);
+                    let seek = worker_state.coins.iter().find(|&x| x.id == coin_id);
                     let coin = seek.unwrap();
-                    let price_usd = coin["price_usd"].as_str().unwrap().parse::<f64>().unwrap();
+                    let price_usd = coin.price_usd.to_f64().unwrap();
 
-                    let balance_cny = price_usd * usd2cny * amount;
+                    let balance_cny = price_usd * worker_state.usd2cny_rate * amount;
                     total_balance += balance_cny;
                     UserCoin {
                         coin_id: coin_id,
@@ -66,8 +80,8 @@ fn index(
         .unwrap();
 
     Json(json!({
-        "total_balance": total_balance,
-        "detail": user_states
+        "balance": total_balance,
+        "states": user_states
     }))
 }
 
@@ -97,6 +111,13 @@ fn login_post(mut cookies: Cookies, login: Form<Login>, cnf: State<Config>) -> F
         );
         Flash::success(Redirect::to("/api"), "Successfully logged in.")
     } else {
-        Flash::error(Redirect::to("/login"), "Invalid username/password.")
+        Flash::error(Redirect::to("/api/login"), "Invalid username/password.")
     }
+}
+
+#[post("/logout")]
+fn logout(mut cookies: Cookies) -> Flash<Redirect> {
+    cookies.remove_private(Cookie::named("sess_id"));
+
+    Flash::success(Redirect::to("/api/login"), "Successfully logged out.")
 }
