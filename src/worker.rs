@@ -85,7 +85,7 @@ impl State {
             .unwrap();
         for row in ret {
             let (k, v): (String, String) = mysql::from_row(row.unwrap());
-            let value = json!(v);
+            let value: serde_json::Value = serde_json::from_str(v.as_str()).unwrap();
             match k.as_str() {
                 "coins" => for row in value.as_array().unwrap().iter() {
                     let item = Coin::from_json(row);
