@@ -20,8 +20,6 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate time;
 extern crate tokio_core;
-extern crate bigdecimal;
-extern crate num;
 
 mod utils;
 mod api;

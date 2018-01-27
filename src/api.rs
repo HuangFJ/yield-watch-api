@@ -1,5 +1,4 @@
 use time;
-use num::ToPrimitive;
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 use mysql::{self, Pool};
@@ -64,9 +63,8 @@ fn index(
                     let (coin_id, amount, created): (String, f64, i32) = mysql::from_row(row);
                     let seek = worker_state.coins.iter().find(|&x| x.id == coin_id);
                     let coin = seek.unwrap();
-                    let price_usd = coin.price_usd.to_f64().unwrap();
 
-                    let balance_cny = price_usd * worker_state.usd2cny_rate * amount;
+                    let balance_cny = coin.price_usd * worker_state.usd2cny_rate * amount;
                     total_balance += balance_cny;
                     UserCoin {
                         coin_id: coin_id,

@@ -1,9 +1,7 @@
-use std::str::FromStr;
 use std::error::Error;
 use std::sync::{Arc, RwLock};
 use serde_json;
 use mysql::{self, Pool, Value};
-use bigdecimal::BigDecimal;
 use time;
 
 use utils;
@@ -14,10 +12,10 @@ pub struct Coin {
     pub name: String,
     pub symbol: String,
     pub rank: i64,
-    pub price_usd: BigDecimal,
-    pub price_btc: BigDecimal,
-    pub volume_usd: BigDecimal,
-    pub market_cap_usd: BigDecimal,
+    pub price_usd: f64,
+    pub price_btc: f64,
+    pub volume_usd: f64,
+    pub market_cap_usd: f64,
     pub available_supply: f64,
     pub total_supply: f64,
     pub max_supply: f64,
@@ -25,9 +23,9 @@ pub struct Coin {
     pub percent_change_24h: f64,
     pub percent_change_7d: f64,
     pub last_updated: i64,
-    pub price_cny: BigDecimal,
-    pub volume_cny: BigDecimal,
-    pub market_cap_cny: BigDecimal,
+    pub price_cny: f64,
+    pub volume_cny: f64,
+    pub market_cap_cny: f64,
 }
 
 impl Coin {
@@ -37,11 +35,10 @@ impl Coin {
             name: j["name"].as_str().unwrap().into(),
             symbol: j["symbol"].as_str().unwrap().into(),
             rank: j["rank"].as_str().unwrap().parse().unwrap(),
-            price_usd: BigDecimal::from_str(j["price_usd"].as_str().unwrap_or("0")).unwrap(),
-            price_btc: BigDecimal::from_str(j["price_btc"].as_str().unwrap_or("0")).unwrap(),
-            volume_usd: BigDecimal::from_str(j["24h_volume_usd"].as_str().unwrap_or("0")).unwrap(),
-            market_cap_usd: BigDecimal::from_str(j["market_cap_usd"].as_str().unwrap_or("0"))
-                .unwrap(),
+            price_usd: j["price_usd"].as_str().unwrap_or("0").parse().unwrap(),
+            price_btc: j["price_btc"].as_str().unwrap_or("0").parse().unwrap(),
+            volume_usd: j["24h_volume_usd"].as_str().unwrap_or("0").parse().unwrap(),
+            market_cap_usd: j["market_cap_usd"].as_str().unwrap_or("0").parse().unwrap(),
             available_supply: j["available_supply"]
                 .as_str()
                 .unwrap_or("0")
@@ -65,10 +62,9 @@ impl Coin {
                 .parse()
                 .unwrap(),
             last_updated: j["last_updated"].as_str().unwrap_or("0").parse().unwrap(),
-            price_cny: BigDecimal::from_str(j["price_cny"].as_str().unwrap_or("0")).unwrap(),
-            volume_cny: BigDecimal::from_str(j["24h_volume_cny"].as_str().unwrap_or("0")).unwrap(),
-            market_cap_cny: BigDecimal::from_str(j["market_cap_cny"].as_str().unwrap_or("0"))
-                .unwrap(),
+            price_cny: j["price_cny"].as_str().unwrap_or("0").parse().unwrap(),
+            volume_cny: j["24h_volume_cny"].as_str().unwrap_or("0").parse().unwrap(),
+            market_cap_cny: j["market_cap_cny"].as_str().unwrap_or("0").parse().unwrap(),
         }
     }
 }
