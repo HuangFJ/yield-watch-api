@@ -74,7 +74,35 @@ pub struct State {
     pub coins: Vec<Coin>,
 }
 
-pub fn refresh_rates(lock: &Arc<RwLock<State>>) -> Result<(), Box<Error>> {
+impl State {
+    pub fn init(mysql_pool: &Pool) -> State {
+        let mut state = State {
+            usd2cny_rate: 0.0,
+            coins: vec![],
+        };
+        let ret = mysql_pool
+            .prep_exec("SELECT k,v FROM _cache WHERE k IN ('coins','rates')", ())
+            .unwrap();
+        for row in ret {
+            let (k, v): (String, String) = mysql::from_row(row.unwrap());
+            let value = json!(v);
+            match k.as_str() {
+                "coins" => for row in value.as_array().unwrap().iter() {
+                    let item = Coin::from_json(row);
+                    state.coins.push(item);
+                },
+                "rates" => {
+                    state.usd2cny_rate = value["rates"]["CNY"].as_f64().unwrap();
+                }
+                _ => (),
+            }
+        }
+
+        state
+    }
+}
+
+pub fn refresh_rates(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<Error>> {
     // 获取汇率
     let value = utils::request_json("https://api.fixer.io/latest?base=USD", None)?;
 
@@ -82,6 +110,11 @@ pub fn refresh_rates(lock: &Arc<RwLock<State>>) -> Result<(), Box<Error>> {
         let mut state = lock.write().unwrap();
         (*state).usd2cny_rate = value["rates"]["CNY"].as_f64().unwrap();
     }
+    pool.prep_exec(
+        "REPLACE INTO _cache (k,v,created) VALUES (?,?,?)",
+        ("rates", value.to_string(), time::get_time().sec),
+    )?;
+
     Ok(())
 }
 
@@ -128,6 +161,10 @@ pub fn refresh_coins(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<E
         let mut state = lock.write().unwrap();
         (*state).coins = data;
     }
+    pool.prep_exec(
+        "REPLACE INTO _cache (k,v,created) VALUES (?,?,?)",
+        ("coins", value.to_string(), time::get_time().sec),
+    )?;
 
     Ok(())
 }
