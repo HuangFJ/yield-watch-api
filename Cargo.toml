@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Jon Huang <biohfj@gmail.com>"]
 
 [[bin]]
-name = "main"
+name = "yield_watch"
 path = "src/main.rs"
 
 [[bin]]
