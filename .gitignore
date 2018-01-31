@@ -5,3 +5,4 @@ Cargo.lock
 Rocket.toml
 INSTALL.md
 /static/
+/src/test.rs

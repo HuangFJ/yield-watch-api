@@ -87,3 +87,30 @@ pub fn json_from_tomlfile(filename: &str) -> Json {
         .map(toml2json)
         .expect("Error converting toml to json")
 }
+
+pub fn query_quote(str: &str) -> String {
+    rfc3986_encode(str, false)
+}
+
+pub fn rfc3986_encode(str: &str, full_url: bool) -> String {
+    str.as_bytes().iter().fold(String::new(), |mut out, &b| {
+        match b as char {
+            // unreserved:
+            'A' ... 'Z'
+            | 'a' ... 'z'
+            | '0' ... '9'
+            | '-' | '.' | '_' | '~' => out.push(b as char),
+
+            // gen-delims:
+            ':' | '/' | '?' | '#' | '[' | ']' | '@' |
+            // sub-delims:
+            '!' | '$' | '&' | '"' | '(' | ')' | '*' |
+            '+' | ',' | ';' | '='
+                if full_url => out.push(b as char),
+
+            ch => out.push_str(&format!("%{:02X}", ch as u8)),
+        };
+
+        out
+    })
+}

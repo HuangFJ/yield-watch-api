@@ -26,3 +26,6 @@ hyper-tls = "0.1.2"
 tokio-core = "0.1"
 toml = "0.2"
 time = "*"
+uuid = {features = ["v4"]}
+sha1 = "^0.2.0"
+rustc-serialize = "*"

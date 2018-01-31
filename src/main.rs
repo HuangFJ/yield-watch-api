@@ -24,6 +24,9 @@ extern crate tokio_core;
 mod utils;
 mod api;
 mod worker;
+mod models;
+mod alisms;
+mod hmac_sha1;
 
 use std::{thread, time as stdtime};
 use std::sync::{Arc, RwLock};

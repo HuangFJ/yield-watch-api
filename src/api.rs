@@ -4,13 +4,14 @@ use std::collections::HashMap;
 use mysql::{self, Pool};
 
 use rocket::{Config, State};
-use rocket::outcome::IntoOutcome;
+use rocket::Outcome;
 use rocket::http::{Cookie, Cookies};
 use rocket::request::{Form, FromRequest, Outcome as ReqOutcome, Request};
 use rocket::response::{Flash, Redirect};
 use rocket_contrib::{Json, Template, Value};
 
 use worker;
+use models::SmsNotify;
 
 #[derive(Serialize, Deserialize)]
 struct UserCoin {
@@ -30,16 +31,14 @@ struct User {
     id: i64,
 }
 
-impl<'a, 'r> FromRequest<'a, 'r> for User {
+impl<'a, 'r> FromRequest<'a, 'r> for SmsNotify {
     type Error = ();
-    fn from_request(request: &'a Request<'r>) -> ReqOutcome<User, ()> {
-        let mysql_pool = request.guard::<State<Pool>>()?;
-        request
-            .cookies()
-            .get_private("sess_id")
-            .and_then(|cookie| cookie.value().parse().ok())
-            .map(|sess_id| User { id: sess_id })
-            .or_forward(())
+    fn from_request(request: &'a Request<'r>) -> ReqOutcome<SmsNotify, ()> {
+        let cnf = request.guard::<State<Config>>()?;
+        Outcome::Success(SmsNotify::new(
+            cnf.get_str("ali_sms_key_id").unwrap(),
+            cnf.get_str("ali_sms_key_secret").unwrap(),
+        ))
     }
 }
 
@@ -92,15 +91,15 @@ fn login_page() -> Template {
 }
 
 #[post("/login", data = "<login>")]
-fn login_post(mut cookies: Cookies, login: Form<Login>, cnf: State<Config>) -> Flash<Redirect> {
+fn login_post(mut cookies: Cookies, login: Form<Login>, cnf: State<Config>, mut sms: SmsNotify) -> Flash<Redirect> {
     let cookie_max_age_hours =
         time::Duration::hours(cnf.get_int("cookie_max_age_hours").unwrap_or(24));
-    let cookie_domain = cnf.address.clone();
+    let cookie_domain = cnf.get_str("cookie_domain").unwrap();
 
     if login.get().username == "jon" && login.get().password == "" {
         cookies.add_private(
             Cookie::build("sess_id", 1.to_string())
-                .domain(cookie_domain)
+                .domain(cookie_domain.to_string())
                 .path("/")
                 .secure(true)
                 .http_only(true)
