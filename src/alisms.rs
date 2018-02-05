@@ -5,14 +5,26 @@ use rustc_serialize::base64::{ToBase64, STANDARD};
 use hmac_sha1::hmac_sha1;
 use utils;
 
-pub trait Sms {
-    // key_id, key_secret, sign_name, template_code, phone_numbers, template_param, out_id
-    fn ready(&self) -> (&str, &str, &str, &str, &str, &str, &str);
+pub struct SmsBody {
+    pub key_id: String,
+    pub key_secret: String,
+    pub sign_name: String,
+    pub template_code: String,
+    pub phone_numbers: String,
+    pub template_param: String,
+    pub out_id: String,
 }
 
-pub fn sms_api<T: Sms>(sms: &T) {
-    let (key_id, key_secret, sign_name, template_code, phone_numbers, template_param, out_id) =
-        sms.ready();
+pub fn sms_api(sms: SmsBody) {
+    let SmsBody {
+        key_id,
+        key_secret,
+        sign_name,
+        template_code,
+        phone_numbers,
+        template_param,
+        out_id,
+    } = sms;
     let tm = time::now_utc();
     let tm_string = time::strftime("%Y-%m-%dT%H:%M:%SZ", &tm).unwrap();
 
@@ -23,7 +35,7 @@ pub fn sms_api<T: Sms>(sms: &T) {
     // 1. 系统参数
     params.insert("SignatureMethod", "HMAC-SHA1");
     params.insert("SignatureNonce", &uuid_string);
-    params.insert("AccessKeyId", key_id);
+    params.insert("AccessKeyId", &key_id);
     params.insert("SignatureVersion", "1.0");
     params.insert("Timestamp", &tm_string);
     params.insert("Format", "JSON");
@@ -32,12 +44,12 @@ pub fn sms_api<T: Sms>(sms: &T) {
     params.insert("Action", "SendSms");
     params.insert("Version", "2017-05-25");
     params.insert("RegionId", "cn-hangzhou");
-    params.insert("PhoneNumbers", phone_numbers);
-    params.insert("SignName", sign_name);
-    params.insert("TemplateParam", template_param);
-    params.insert("TemplateCode", template_code);
-    if out_id != "" {
-        params.insert("OutId", out_id);
+    params.insert("PhoneNumbers", &phone_numbers);
+    params.insert("SignName", &sign_name);
+    params.insert("TemplateParam", &template_param);
+    params.insert("TemplateCode", &template_code);
+    if &out_id != "" {
+        params.insert("OutId", &out_id);
     }
 
     if params.contains_key("Signature") {

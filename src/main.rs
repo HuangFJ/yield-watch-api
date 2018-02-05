@@ -13,6 +13,7 @@ extern crate mysql;
 extern crate r2d2;
 extern crate rocket;
 extern crate rocket_contrib;
+extern crate rustc_serialize;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -20,16 +21,20 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate time;
 extern crate tokio_core;
+extern crate uuid;
+extern crate rand;
 
 mod utils;
 mod api;
 mod worker;
+#[macro_use]
+mod error;
 mod models;
 mod alisms;
 mod hmac_sha1;
 
 use std::{thread, time as stdtime};
-use std::sync::{Arc, RwLock};
+use std::sync::{mpsc, Arc, Mutex, RwLock};
 use rocket_contrib::Template;
 
 fn main() {
@@ -71,10 +76,24 @@ fn main() {
         }
         thread::sleep(stdtime::Duration::from_secs(86400));
     });
+
+    let (tx, rx) = mpsc::channel();
+    let sms_fac_lock = Mutex::new(models::SmsFactory::new(
+        config.get_str("ali_sms_key_id").unwrap(),
+        config.get_str("ali_sms_key_secret").unwrap(),
+        tx,
+    ));
+    // 异步短信通道
+    thread::spawn(move || loop {
+        let sms_body = rx.recv().unwrap();
+        alisms::sms_api(sms_body);
+    });
+
     server
         .manage(pool_mysql)
         .manage(config)
         .manage(worker_state_lock)
+        .manage(sms_fac_lock)
         .attach(Template::fairing())
         .mount(
             "/api",

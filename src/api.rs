@@ -11,7 +11,8 @@ use rocket::response::{Flash, Redirect};
 use rocket_contrib::{Json, Template, Value};
 
 use worker;
-use models::SmsNotify;
+use std::sync::Mutex;
+use models::{Sms, SmsFactory};
 
 #[derive(Serialize, Deserialize)]
 struct UserCoin {
@@ -29,17 +30,6 @@ struct Login {
 
 struct User {
     id: i64,
-}
-
-impl<'a, 'r> FromRequest<'a, 'r> for SmsNotify {
-    type Error = ();
-    fn from_request(request: &'a Request<'r>) -> ReqOutcome<SmsNotify, ()> {
-        let cnf = request.guard::<State<Config>>()?;
-        Outcome::Success(SmsNotify::new(
-            cnf.get_str("ali_sms_key_id").unwrap(),
-            cnf.get_str("ali_sms_key_secret").unwrap(),
-        ))
-    }
 }
 
 #[get("/")]
@@ -83,15 +73,23 @@ fn index(
 }
 
 #[get("/login")]
-fn login_page() -> Template {
+fn login_page(mysql_pool: State<Pool>,sms_fac_lock: State<Mutex<SmsFactory>>) -> Json<Value> {
+    let sms_fac = sms_fac_lock.lock().unwrap();
+    let mobile = "18559117919";
+    println!("{:?}", sms_fac.gen_code(&mysql_pool, mobile));
+    
+    // sms_fac.send(Sms::Verification {
+    //     phone: mobile.clone(),
+    //     code: code,
+    // });
     let mut context = HashMap::new();
     context.insert("flash", "hi!");
-
-    Template::render("login", &context)
+    Json(json!({"status": 200}))
+    // Template::render("login", &context)
 }
 
 #[post("/login", data = "<login>")]
-fn login_post(mut cookies: Cookies, login: Form<Login>, cnf: State<Config>, mut sms: SmsNotify) -> Flash<Redirect> {
+fn login_post(mut cookies: Cookies, login: Form<Login>, cnf: State<Config>) -> Flash<Redirect> {
     let cookie_max_age_hours =
         time::Duration::hours(cnf.get_int("cookie_max_age_hours").unwrap_or(24));
     let cookie_domain = cnf.get_str("cookie_domain").unwrap();

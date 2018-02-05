@@ -29,3 +29,4 @@ time = "*"
 uuid = {features = ["v4"]}
 sha1 = "^0.2.0"
 rustc-serialize = "*"
+rand = "*"

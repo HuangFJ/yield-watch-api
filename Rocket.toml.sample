@@ -4,12 +4,12 @@
 
 [global.tls]
 # a path to a certificate chain in PEM format
-certs = "./.tls/watch.yield.newfish.com.pem"
+certs = "/path/to/certs.pem"
 # a path to a private key file in PEM format for the certificate in certs
-key = "./.tls/watch.yield.newfish.com.key"
+key = "/path/to/key.pem"
 
 [development]
-address = "watch.yield.newfish.com"
+address = "127.0.0.1"
 port = 8000
 # workers = [number of cpus * 2]
 log = "normal"
@@ -17,9 +17,12 @@ log = "normal"
 limits = { forms = 32768 }
 mysql = "mysql://jon@127.0.0.1:3306/yield"
 cookie_max_age_hours = 48
+cookie_domain = "localhost"
+ali_sms_key_id = ""
+ali_sms_key_secret = ""
 
 [staging]
-address = "watch.yield.newfish.com"
+address = "127.0.0.1"
 port = 80
 # workers = [number of cpus * 2]
 log = "normal"
@@ -27,7 +30,7 @@ log = "normal"
 limits = { forms = 32768 }
 
 [production]
-address = "watch.yield.newfish.com"
+address = "127.0.0.1"
 port = 80
 # workers = [number of cpus * 2]
 log = "critical"
