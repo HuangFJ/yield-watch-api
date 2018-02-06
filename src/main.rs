@@ -1,16 +1,12 @@
-#![feature(plugin, core_intrinsics, custom_derive)]
+#![feature(plugin, custom_derive)]
 #![plugin(rocket_codegen)]
-#![allow(dead_code)]
-
-fn type_of<T>(_: &T) -> &'static str {
-    unsafe { std::intrinsics::type_name::<T>() }
-}
 
 extern crate futures;
 extern crate hyper;
 extern crate hyper_tls;
 extern crate mysql;
 extern crate r2d2;
+extern crate rand;
 extern crate rocket;
 extern crate rocket_contrib;
 extern crate rustc_serialize;
@@ -22,7 +18,6 @@ extern crate serde_json;
 extern crate time;
 extern crate tokio_core;
 extern crate uuid;
-extern crate rand;
 
 mod utils;
 mod api;

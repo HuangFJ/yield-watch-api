@@ -76,7 +76,7 @@ fn index(
 fn login_page(mysql_pool: State<Pool>,sms_fac_lock: State<Mutex<SmsFactory>>) -> Json<Value> {
     let sms_fac = sms_fac_lock.lock().unwrap();
     let mobile = "18559117919";
-    println!("{:?}", sms_fac.gen_code(&mysql_pool, mobile));
+    sms_fac.gen_code(&mysql_pool, mobile);
     
     // sms_fac.send(Sms::Verification {
     //     phone: mobile.clone(),

@@ -3,8 +3,7 @@ use std::sync::mpsc::Sender;
 use mysql::{self, Pool};
 use rand::{self, Rng};
 use time;
-
-use error;
+use error::E;
 
 pub enum Sms {
     Verification { phone: String, code: String },
@@ -17,7 +16,7 @@ pub struct SmsFactory {
 }
 
 impl SmsFactory {
-    pub fn gen_code(&self, mysql_pool: &Pool, mobile: &str) -> Result<(i64, i64), error::Error> {
+    pub fn gen_code(&self, mysql_pool: &Pool, mobile: &str) -> Result<(i64, i64), E> {
         let now = time::get_time().sec;
         let row = mysql_pool
             .prep_exec(
@@ -33,47 +32,48 @@ impl SmsFactory {
         let last_created = last_created.unwrap_or(0);
 
         if send_times > 10 {
-            return Err(error::SMS_SEND_LIMIT);
+            return Err(E::SmsSendLimit);
         } else if last_created + send_times * 60 > now {
-            return Err(fill!(error::SMS_SEND_INTERVAL, secs=send_times * 60));
+            return Err(E::SmsSendInterval(send_times * 60));
         }
         let code = rand::thread_rng().gen_range(1000, 9999);
-        mysql_pool.prep_exec(
-            "INSERT INTO sms (mobile,code,err_times,created) VALUES (?,?,?,?)",
-            (mobile, code, 0, now),
-        ).unwrap();
+        mysql_pool
+            .prep_exec(
+                "INSERT INTO sms (mobile,code,err_times,created) VALUES (?,?,?,?)",
+                (mobile, code, 0, now),
+            )
+            .unwrap();
 
         Ok((code, (send_times + 1) * 60))
     }
 
-    pub fn check_code(&self, mysql_pool: &Pool, mobile: &str, code_input: &str) -> bool {
+    pub fn check_code(&self, mysql_pool: &Pool, mobile: &str, code_input: &str) -> Result<(), E> {
         let ret = mysql_pool
         .prep_exec("SELECT id,code,err_times,created FROM sms WHERE mobile=? ORDER BY created DESC LIMIT 1", (mobile,))
         .unwrap()
         .next();
-        // 无短信
         if ret.is_none() {
-            return false;
+            return Err(E::SmsVerifyNotFound);
         }
         let (id, code, err_times, created): (i64, i64, i64, i64) =
             mysql::from_row(ret.unwrap().unwrap());
 
         if err_times < 0 {
-            // 已验证
-            false
+            Err(E::SmsVerified)
         } else if err_times > 10 {
-            // 尝试超过10次
-            false
+            Err(E::SmsVerifyLimit)
         } else if created + 600 < time::get_time().sec {
-            // 超过期限10分钟
-            false
+            Err(E::SmsVerifyExpired)
         } else if code.to_string() != code_input.to_string() {
-            //验证码错误
-            mysql_pool.prep_exec("UPDATE sms SET err_times=err_times+1 WHERE id=?", (id,)).unwrap();
-            false
+            mysql_pool
+                .prep_exec("UPDATE sms SET err_times=err_times+1 WHERE id=?", (id,))
+                .unwrap();
+            Err(E::SmsVerifyInvalid)
         } else {
-            mysql_pool.prep_exec("UPDATE sms SET err_times=-1 WHERE id=?", (id,)).unwrap();
-            true
+            mysql_pool
+                .prep_exec("UPDATE sms SET err_times=-1 WHERE id=?", (id,))
+                .unwrap();
+            Ok(())
         }
     }
 
