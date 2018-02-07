@@ -18,11 +18,12 @@ extern crate serde_json;
 extern crate time;
 extern crate tokio_core;
 extern crate uuid;
+extern crate regex;
+extern crate crypto;
 
 mod utils;
 mod api;
 mod worker;
-#[macro_use]
 mod error;
 mod models;
 mod alisms;

@@ -1,9 +1,17 @@
+use std::collections::HashMap;
+use std::ops::Deref;
+use rocket::request::{FormItems, FromForm};
 use alisms::SmsBody;
 use std::sync::mpsc::Sender;
 use mysql::{self, Pool};
 use rand::{self, Rng};
 use time;
+use crypto::digest::Digest;
+use crypto::md5::Md5;
+use rustc_serialize::base64::FromBase64;
+
 use error::E;
+use utils;
 
 pub enum Sms {
     Verification { phone: String, code: String },
@@ -47,7 +55,7 @@ impl SmsFactory {
         Ok((code, (send_times + 1) * 60))
     }
 
-    pub fn check_code(&self, mysql_pool: &Pool, mobile: &str, code_input: &str) -> Result<(), E> {
+    pub fn check_code(&self, mysql_pool: &Pool, mobile: &str, code_input: u32) -> Result<(), E> {
         let ret = mysql_pool
         .prep_exec("SELECT id,code,err_times,created FROM sms WHERE mobile=? ORDER BY created DESC LIMIT 1", (mobile,))
         .unwrap()
@@ -55,7 +63,7 @@ impl SmsFactory {
         if ret.is_none() {
             return Err(E::SmsVerifyNotFound);
         }
-        let (id, code, err_times, created): (i64, i64, i64, i64) =
+        let (id, code, err_times, created): (i64, u32, i64, i64) =
             mysql::from_row(ret.unwrap().unwrap());
 
         if err_times < 0 {
@@ -64,7 +72,7 @@ impl SmsFactory {
             Err(E::SmsVerifyLimit)
         } else if created + 600 < time::get_time().sec {
             Err(E::SmsVerifyExpired)
-        } else if code.to_string() != code_input.to_string() {
+        } else if code != code_input {
             mysql_pool
                 .prep_exec("UPDATE sms SET err_times=err_times+1 WHERE id=?", (id,))
                 .unwrap();
@@ -101,5 +109,43 @@ impl SmsFactory {
                     .unwrap();
             }
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct QueryString<'a>(HashMap<&'a str, String>);
+
+impl<'f> FromForm<'f> for QueryString<'f> {
+    type Error = E;
+    fn from_form(items: &mut FormItems<'f>, strict: bool) -> Result<QueryString<'f>, E> {
+        let mut qs = QueryString(HashMap::new());
+
+        for (key, value) in items {
+            let key = key.as_str();
+            let value = value.url_decode().unwrap();
+            match key {
+                "access_token" => {
+                    let mut sh = Md5::new();
+                    sh.input_str("j0n");
+                    let key = sh.result_str();
+                    let enc = value.as_str().from_base64().unwrap();
+                    let dec =
+                        utils::decrypt(&enc, &key.as_bytes()).map_err(|_| E::AccessTokenInvalid)?;
+                    let sess_id = String::from_utf8(dec).unwrap();
+                    qs.0.insert("_sess_id", sess_id);
+                }
+                _ => (),
+            }
+
+            qs.0.insert(key, value);
+        }
+        Ok(qs)
+    }
+}
+
+impl<'a> Deref for QueryString<'a> {
+    type Target = HashMap<&'a str, String>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
