@@ -31,7 +31,7 @@ pub fn sms_api(sms: SmsBody) {
     let uuid_string = Uuid::new_v4().hyphenated().to_string();
 
     let mut params = BTreeMap::new();
-    // 1. 系统参数
+    // system parameters
     params.insert("SignatureMethod", "HMAC-SHA1");
     params.insert("SignatureNonce", &uuid_string);
     params.insert("AccessKeyId", &key_id);
@@ -39,7 +39,7 @@ pub fn sms_api(sms: SmsBody) {
     params.insert("Timestamp", &tm_string);
     params.insert("Format", "JSON");
 
-    // 2. 业务API参数
+    // business parameters
     params.insert("Action", "SendSms");
     params.insert("Version", "2017-05-25");
     params.insert("RegionId", "cn-hangzhou");

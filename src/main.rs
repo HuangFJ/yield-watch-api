@@ -45,7 +45,7 @@ fn main() {
     let worker_state_lock = Arc::new(RwLock::new(worker::State::init(&pool_mysql)));
     let worker_state_lock_tx1 = worker_state_lock.clone();
     let worker_state_lock_tx2 = worker_state_lock.clone();
-    // 每隔5分钟刷新一次币列表
+    // update all coins price every 5 minutes
     thread::spawn(move || loop {
         match worker::refresh_coins(&pool_tx1, &worker_state_lock_tx1) {
             Ok(_) => (),
@@ -53,7 +53,7 @@ fn main() {
         }
         thread::sleep(stdtime::Duration::from_secs(300));
     });
-    // 每隔6秒获取一次币的价格历史数据
+    // update specific coin historical price every 7 seconds
     thread::spawn(move || loop {
         let sleep_secs = match worker::refresh_prices(&pool_tx2) {
             Ok(secs) => secs,
@@ -64,7 +64,7 @@ fn main() {
         };
         thread::sleep(stdtime::Duration::from_secs(sleep_secs));
     });
-    // 每隔1天刷新一次汇率
+    // update currency exchange rate every day
     thread::spawn(move || loop {
         match worker::refresh_rates(&pool_tx3, &worker_state_lock_tx2) {
             Ok(_) => (),
@@ -79,7 +79,7 @@ fn main() {
         config.get_str("ali_sms_key_secret").unwrap(),
         tx,
     ));
-    // 异步短信通道
+    // asynchronous sms sending
     thread::spawn(move || loop {
         let sms_body = rx.recv().unwrap();
         alisms::sms_api(sms_body);

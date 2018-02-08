@@ -104,6 +104,9 @@ impl SmsFactory {
     }
 }
 
+/// QueryString is used for parsing query string. Although Rocket supply a FromForm strait,
+/// but it's behavior is strange. QueryString is more like Flask's `request.args`. It used a 
+/// HashMap to store items. And you don't need to place a param name in uri.
 #[derive(Debug)]
 pub struct QueryString<'a>(HashMap<&'a str, String>);
 
@@ -143,8 +146,12 @@ pub struct Session {
     user: Option<User>,
 }
 
+/// This Session is based on mysql database. For reduce db queries, I encrypt session's id 
+/// as a url-safe access token. When it come in with request, it will be decrypted. If success,
+/// then fetch session and user's infomation from db.
 impl Session {
     pub const KEY: &'static str = "j0n";
+    const EXPIRES_IN: i64 = 2592000;
 
     pub fn id_to_access_token(sess_id: &str) -> String {
         let mut sh = Md5::new();
@@ -154,11 +161,24 @@ impl Session {
 
         enc.to_base64(URL_SAFE)
     }
-    pub fn init(mysql_pool: &Pool, sess_id: &str) -> Self {
-        Session {
+
+    pub fn init(mysql_pool: &Pool, sess_id: &str) -> Result<Self, E> {
+        let now = time::get_time().sec;
+        let ret = mysql_pool
+            .prep_exec(
+                "SELECT user_id FROM _session WHERE id=? AND created>?",
+                (sess_id, now - Self::EXPIRES_IN),
+            )?
+            .next();
+        if ret.is_none() {
+            return Err(E::SessionExpired);
+        }
+        let (user_id, created): (i64, i64) = mysql::from_row(ret??);
+        //User::find_by_mobile();
+        Ok(Session {
             id: sess_id.to_string(),
             user: None,
-        }
+        })
     }
 
     pub fn from_query_string(mysql_pool: &Pool, qs: &QueryString) -> Result<Self, E> {
@@ -176,7 +196,7 @@ impl Session {
                             .map_err(|_| E::AccessTokenInvalid)
                             .and_then(|dec| {
                                 str::from_utf8(&dec)
-                                    .map(|sess_id| Session::init(&mysql_pool, sess_id))
+                                    .map(|sess_id| Session::init(&mysql_pool, sess_id))?
                                     .map_err(|_| E::AccessTokenInvalid)
                             })
                     });

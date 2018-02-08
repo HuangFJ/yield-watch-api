@@ -16,6 +16,7 @@ pub enum E {
     SmsMobileInvalid,
     AccessTokenNotFound,
     AccessTokenInvalid,
+    SessionExpired,
     Unknown,
 }
 
@@ -38,6 +39,7 @@ impl E {
             E::SmsMobileInvalid => (8, "手机号格式错误。".into()),
             E::AccessTokenNotFound => (9, "没有令牌。".into()),
             E::AccessTokenInvalid => (10, "无效的令牌。".into()),
+            E::SessionExpired => (11, "会话已过期。".into()),
             E::Unknown => (999, "未知错误。".into()),
         }
     }

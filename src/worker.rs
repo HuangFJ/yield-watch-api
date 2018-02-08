@@ -103,7 +103,7 @@ impl State {
 }
 
 pub fn refresh_rates(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<Error>> {
-    // 获取汇率
+    // fetch exchange rate
     let value = utils::request_json("https://api.fixer.io/latest?base=USD", None)?;
 
     {
@@ -119,7 +119,7 @@ pub fn refresh_rates(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<E
 }
 
 pub fn refresh_coins(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<Error>> {
-    // 所有加密币的即时数据
+    // fetch all coins price instantly
     let value = utils::request_json(
         "https://api.coinmarketcap.com/v1/ticker/?convert=CNY&limit=10000",
         None,
@@ -134,7 +134,7 @@ pub fn refresh_coins(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<E
     for row in value.as_array().unwrap().iter() {
         let item = Coin::from_json(row);
         sql_string.push_str("(?,?,?,?,?,?,?),");
-        // Vec只能存同类型元素，把原始各种类型封装为mysql的Value类型
+        // Vec store only similar type, so we wrap the raw type with mysql Value
         params.push(Value::from(item.id.clone()));
         params.push(Value::from(item.name.clone()));
         params.push(Value::from(item.symbol.clone()));
@@ -170,7 +170,7 @@ pub fn refresh_coins(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<E
 }
 
 pub fn refresh_prices(pool: &Pool) -> Result<u64, Box<Error>> {
-    // 获取每个加密币的历史数据
+    // fetch the specific coin historical price
     let mut result = pool.prep_exec(
         "SELECT t1.id,t1.last_updated,t2.max_updated \
          FROM coins t1 \
@@ -187,12 +187,12 @@ pub fn refresh_prices(pool: &Pool) -> Result<u64, Box<Error>> {
     let mut max_updated = max_updated;
 
     let now = time::get_time().sec;
-    // 接口请求间隔时间限制在7秒
+    // the interval between requests should be large than 7 seconds
     if now - max_updated >= 7 {
         println!("Fetching {} between {} and {}", id, last_updated, now);
         let start = last_updated * 1000;
         let end = now * 1000;
-        // 获取上次最后更新到现在这段时间的数据
+        // only fetch the historical data since last fetching
         let json = match utils::request_json(
             &format!(
                 "https://graphs2.coinmarketcap.com/currencies/{}/{}/{}/", // graphs.coinmarketcap.com
@@ -202,7 +202,7 @@ pub fn refresh_prices(pool: &Pool) -> Result<u64, Box<Error>> {
         ) {
             Ok(v) => v,
             Err(e) => {
-                // 请求失败，降低优先级
+                // request failed, skip for next cycle
                 pool.prep_exec("UPDATE coins SET score=score-1 WHERE id=?", (id,))?;
                 return Err(e);
             }
@@ -236,7 +236,7 @@ pub fn refresh_prices(pool: &Pool) -> Result<u64, Box<Error>> {
         }
         sql_string.pop();
 
-        // 空数据不必写入数据库
+        // no data, skip db writing
         if !params.is_empty() {
             pool.prep_exec(sql_string, params)?;
         }
