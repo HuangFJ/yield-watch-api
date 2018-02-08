@@ -7,14 +7,10 @@ use rocket::request::Form;
 use rocket::response::{Flash, Redirect};
 use rocket_contrib::{Json, Value};
 use regex::Regex;
-use crypto::digest::Digest;
-use crypto::md5::Md5;
-use rustc_serialize::base64::{ToBase64, URL_SAFE};
 
 use worker;
-use models::{QueryString, Sms, SmsFactory};
+use models::{QueryString, Session, Sms, SmsFactory};
 use error::E;
-use utils;
 
 /// ### send authorization sms
 /// - /api/sms
@@ -103,44 +99,24 @@ fn sms_auth(
     sms_fac.check_code(&mysql_pool, mobile, code).and_then(|_| {
         let sess_id = "hello";
 
-        let mut sh = Md5::new();
-        sh.input_str("jon");
-        let key = sh.result_str();
-        let access_token = utils::encrypt(sess_id.as_bytes(), &key.as_bytes())
-            .ok()
-            .unwrap();
-
         Ok(Json(json!({
             "uid": "",
-            "access_token": ""
+            "access_token": Session::id_to_access_token(sess_id)
         })))
     })
 }
 
-#[get("/me?<qs>")]
-fn me_get(qs: QueryString) -> Result<(), E> {
-    let sess_id = match qs.get("_sess_id") {
-        Some(v) => v,
-        None => return Err(E::AccessTokenNotFound),
-    };
-
-    println!("{}", sess_id);
+#[get("/me")]
+fn me_get(qs: QueryString, mysql_pool: State<Pool>) -> Result<(), E> {
+    let sess = Session::from_query_string(&mysql_pool, &qs)?;
+    println!("{:?}", sess);
     println!("{:?}", qs);
 
-    Ok(())
-}
-
-#[get("/me")]
-fn me_get_default() {
     let sess_id = "hello";
 
-    let mut sh = Md5::new();
-    sh.input_str("j0n");
-    let key = sh.result_str();
-    let enc = utils::encrypt(sess_id.as_bytes(), &key.as_bytes())
-        .ok()
-        .unwrap();
-    println!("{:?}", enc.to_base64(URL_SAFE))
+    println!("{}", Session::id_to_access_token(sess_id));
+
+    Ok(())
 }
 
 #[derive(Serialize, Deserialize)]

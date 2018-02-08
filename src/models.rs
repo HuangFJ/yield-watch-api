@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::ops::Deref;
-use rocket::request::{FormItems, FromForm};
+use rocket::request::{self, FormItems, FromRequest, Request};
+use rocket::Outcome;
 use alisms::SmsBody;
 use std::sync::mpsc::Sender;
 use mysql::{self, Pool};
@@ -8,7 +9,7 @@ use rand::{self, Rng};
 use time;
 use crypto::digest::Digest;
 use crypto::md5::Md5;
-use rustc_serialize::base64::FromBase64;
+use rustc_serialize::base64::{FromBase64, ToBase64, URL_SAFE};
 
 use error::E;
 use utils;
@@ -115,31 +116,24 @@ impl SmsFactory {
 #[derive(Debug)]
 pub struct QueryString<'a>(HashMap<&'a str, String>);
 
-impl<'f> FromForm<'f> for QueryString<'f> {
+impl<'a, 'r> FromRequest<'a, 'r> for QueryString<'a> {
     type Error = E;
-    fn from_form(items: &mut FormItems<'f>, strict: bool) -> Result<QueryString<'f>, E> {
+    fn from_request(req: &'a Request<'r>) -> request::Outcome<QueryString<'a>, E> {
         let mut qs = QueryString(HashMap::new());
-
-        for (key, value) in items {
-            let key = key.as_str();
-            let value = value.url_decode().unwrap();
-            match key {
-                "access_token" => {
-                    let mut sh = Md5::new();
-                    sh.input_str("j0n");
-                    let key = sh.result_str();
-                    let enc = value.as_str().from_base64().unwrap();
-                    let dec =
-                        utils::decrypt(&enc, &key.as_bytes()).map_err(|_| E::AccessTokenInvalid)?;
-                    let sess_id = String::from_utf8(dec).unwrap();
-                    qs.0.insert("_sess_id", sess_id);
+        match req.uri().query() {
+            Some(s) => {
+                let items = FormItems::from(s);
+                for (key, value) in items {
+                    let key = key.as_str();
+                    let value = value.url_decode().unwrap();
+                    qs.0.insert(key, value);
                 }
-                _ => (),
             }
-
-            qs.0.insert(key, value);
+            // not found query string
+            None => (),
         }
-        Ok(qs)
+
+        Outcome::Success(qs)
     }
 }
 
@@ -148,4 +142,61 @@ impl<'a> Deref for QueryString<'a> {
     fn deref(&self) -> &Self::Target {
         &self.0
     }
+}
+
+#[derive(Debug)]
+pub struct Session {
+    id: String,
+    user: Option<User>,
+}
+
+impl Session {
+    pub const KEY: &'static str = "j0n";
+
+    pub fn id_to_access_token(sess_id: &str) -> String {
+        let mut sh = Md5::new();
+        sh.input_str(Self::KEY);
+        let key = sh.result_str();
+        let enc = utils::encrypt(sess_id.as_bytes(), &key.as_bytes())
+            .ok()
+            .unwrap();
+
+        enc.to_base64(URL_SAFE)
+    }
+    pub fn init(mysql_pool: &Pool, sess_id: &str) -> Self {
+        Session {
+            id: sess_id.to_string(),
+            user: None,
+        }
+    }
+
+    pub fn from_query_string(mysql_pool: &Pool, qs: &QueryString) -> Result<Self, E> {
+        match qs.get("access_token") {
+            Some(value) => {
+                let mut sh = Md5::new();
+                sh.input_str(Session::KEY);
+                let key = sh.result_str();
+
+                return value
+                    .from_base64()
+                    .map_err(|_| E::AccessTokenInvalid)
+                    .and_then(|enc| {
+                        utils::decrypt(&enc, &key.as_bytes())
+                            .map_err(|_| E::AccessTokenInvalid)
+                            .map(|dec| {
+                                let sess_id = String::from_utf8(dec).unwrap();
+                                Session::init(&mysql_pool, &sess_id)
+                            })
+                    });
+            }
+            None => Err(E::AccessTokenNotFound), // not found access_token in query string
+        }
+    }
+}
+
+#[derive(Debug)]
+struct User {
+    id: i64,
+    name: String,
+    mobile: String,
 }
