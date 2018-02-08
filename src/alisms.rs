@@ -1,6 +1,6 @@
 use time;
 use std::collections::BTreeMap;
-use uuid::{Uuid, UuidVersion};
+use uuid::Uuid;
 use rustc_serialize::base64::{ToBase64, STANDARD};
 use hmac_sha1::hmac_sha1;
 use utils;
@@ -28,8 +28,7 @@ pub fn sms_api(sms: SmsBody) {
     let tm = time::now_utc();
     let tm_string = time::strftime("%Y-%m-%dT%H:%M:%SZ", &tm).unwrap();
 
-    let uuid = Uuid::new(UuidVersion::Random).unwrap();
-    let uuid_string = uuid.hyphenated().to_string();
+    let uuid_string = Uuid::new_v4().hyphenated().to_string();
 
     let mut params = BTreeMap::new();
     // 1. 系统参数

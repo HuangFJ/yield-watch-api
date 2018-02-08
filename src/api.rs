@@ -7,13 +7,30 @@ use rocket::request::Form;
 use rocket::response::{Flash, Redirect};
 use rocket_contrib::{Json, Value};
 use regex::Regex;
+use uuid::Uuid;
 
 use worker;
 use models::{QueryString, Session, Sms, SmsFactory};
 use error::E;
 
+#[error(502)]
+fn bad_gateway() -> E {
+    E::Unknown
+}
+
+#[error(500)]
+fn internal_server_error() -> E {
+    E::Unknown
+}
+
+#[error(400)]
+fn bad_request() -> E {
+    E::Unknown
+}
+
 /// ### send authorization sms
 /// - /api/sms
+/// - Content-Type: application/json
 /// - post
 /// ```js
 /// {
@@ -39,16 +56,16 @@ fn sms(
     mysql_pool: State<Pool>,
     sms_fac_lock: State<Mutex<SmsFactory>>,
 ) -> Result<Json<Value>, E> {
-    let sms_fac = sms_fac_lock.lock().unwrap();
-    let mobile = data["mobile"].as_str().unwrap();
-    if !Regex::new(r"^1\d{10}$").unwrap().is_match(mobile) {
+    let sms_fac = sms_fac_lock.lock()?;
+    let mobile = data["mobile"].as_str()?;
+    if !Regex::new(r"^1\d{10}$")?.is_match(mobile) {
         return Err(E::SmsMobileInvalid);
     }
     let (code, interval) = sms_fac.gen_code(&mysql_pool, mobile)?;
     sms_fac.send(Sms::Verification {
         phone: mobile.to_string(),
         code: code.to_string(),
-    });
+    })?;
     println!("sms code: {}, interval: {}", code, interval);
 
     Ok(Json(json!({
@@ -58,6 +75,7 @@ fn sms(
 
 /// ### verify authorization sms code
 /// - /api/sms/auth
+/// - Content-Type: application/json
 /// - post
 /// ```js
 /// {
@@ -89,19 +107,18 @@ fn sms_auth(
     mysql_pool: State<Pool>,
     sms_fac_lock: State<Mutex<SmsFactory>>,
 ) -> Result<Json<Value>, E> {
-    let sms_fac = sms_fac_lock.lock().unwrap();
-    let mobile = data["mobile"].as_str().unwrap();
-    let code = data["code"].as_str().unwrap().parse::<u32>().unwrap();
-    if !Regex::new(r"^1\d{10}$").unwrap().is_match(mobile) {
+    let sms_fac = sms_fac_lock.lock()?;
+    let mobile = data["mobile"].as_str()?;
+    let code = data["code"].as_i64()?;
+    if !Regex::new(r"^1\d{10}$")?.is_match(mobile) {
         return Err(E::SmsMobileInvalid);
     }
 
-    sms_fac.check_code(&mysql_pool, mobile, code).and_then(|_| {
-        let sess_id = "hello";
+    sms_fac.check_code(&mysql_pool, mobile, code as u32).and_then(|_| {
+        let sess_id =Uuid::new_v4().hyphenated().to_string();
 
         Ok(Json(json!({
-            "uid": "",
-            "access_token": Session::id_to_access_token(sess_id)
+            "access_token": Session::id_to_access_token(&sess_id)
         })))
     })
 }
@@ -133,9 +150,6 @@ struct Login {
     password: String,
 }
 
-struct User {
-    id: i64,
-}
 
 #[get("/")]
 fn index(

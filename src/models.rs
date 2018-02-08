@@ -10,6 +10,8 @@ use time;
 use crypto::digest::Digest;
 use crypto::md5::Md5;
 use rustc_serialize::base64::{FromBase64, ToBase64, URL_SAFE};
+use rocket::http::Status;
+use std::str;
 
 use error::E;
 use utils;
@@ -32,11 +34,8 @@ impl SmsFactory {
                 "SELECT COUNT(0) AS send_times,MAX(created) AS last_created FROM sms \
                  WHERE mobile=? AND created>? ORDER BY created DESC",
                 (mobile, now - 86400),
-            )
-            .unwrap()
-            .next()
-            .unwrap()
-            .unwrap();
+            )?
+            .next()??;
         let (send_times, last_created): (i64, Option<i64>) = mysql::from_row(row);
         let last_created = last_created.unwrap_or(0);
 
@@ -46,26 +45,22 @@ impl SmsFactory {
             return Err(E::SmsSendInterval(send_times * 60));
         }
         let code = rand::thread_rng().gen_range(1000, 9999);
-        mysql_pool
-            .prep_exec(
-                "INSERT INTO sms (mobile,code,err_times,created) VALUES (?,?,?,?)",
-                (mobile, code, 0, now),
-            )
-            .unwrap();
+        mysql_pool.prep_exec(
+            "INSERT INTO sms (mobile,code,err_times,created) VALUES (?,?,?,?)",
+            (mobile, code, 0, now),
+        )?;
 
         Ok((code, (send_times + 1) * 60))
     }
 
     pub fn check_code(&self, mysql_pool: &Pool, mobile: &str, code_input: u32) -> Result<(), E> {
         let ret = mysql_pool
-        .prep_exec("SELECT id,code,err_times,created FROM sms WHERE mobile=? ORDER BY created DESC LIMIT 1", (mobile,))
-        .unwrap()
+        .prep_exec("SELECT id,code,err_times,created FROM sms WHERE mobile=? ORDER BY created DESC LIMIT 1", (mobile,))?
         .next();
         if ret.is_none() {
             return Err(E::SmsVerifyNotFound);
         }
-        let (id, code, err_times, created): (i64, u32, i64, i64) =
-            mysql::from_row(ret.unwrap().unwrap());
+        let (id, code, err_times, created): (i64, u32, i64, i64) = mysql::from_row(ret??);
 
         if err_times < 0 {
             Err(E::SmsVerified)
@@ -74,14 +69,10 @@ impl SmsFactory {
         } else if created + 600 < time::get_time().sec {
             Err(E::SmsVerifyExpired)
         } else if code != code_input {
-            mysql_pool
-                .prep_exec("UPDATE sms SET err_times=err_times+1 WHERE id=?", (id,))
-                .unwrap();
+            mysql_pool.prep_exec("UPDATE sms SET err_times=err_times+1 WHERE id=?", (id,))?;
             Err(E::SmsVerifyInvalid)
         } else {
-            mysql_pool
-                .prep_exec("UPDATE sms SET err_times=-1 WHERE id=?", (id,))
-                .unwrap();
+            mysql_pool.prep_exec("UPDATE sms SET err_times=-1 WHERE id=?", (id,))?;
             Ok(())
         }
     }
@@ -94,22 +85,22 @@ impl SmsFactory {
         }
     }
 
-    pub fn send(&self, sms: Sms) {
+    pub fn send(&self, sms: Sms) -> Result<(), E> {
         match sms {
             Sms::Verification { phone, code } => {
-                self.tx
-                    .send(SmsBody {
-                        key_id: self.key_id.clone(),
-                        key_secret: self.key_secret.clone(),
-                        sign_name: "yield助手".to_string(),
-                        template_code: "SMS_123673246".to_string(),
-                        phone_numbers: phone.to_string(),
-                        template_param: format!("{{\"code\":\"{code}\"}}", code = code),
-                        out_id: "".to_string(),
-                    })
-                    .unwrap();
+                self.tx.send(SmsBody {
+                    key_id: self.key_id.clone(),
+                    key_secret: self.key_secret.clone(),
+                    sign_name: "yield助手".to_string(),
+                    template_code: "SMS_123673246".to_string(),
+                    phone_numbers: phone.to_string(),
+                    template_param: format!("{{\"code\":\"{code}\"}}", code = code),
+                    out_id: "".to_string(),
+                })?;
             }
         }
+
+        Ok(())
     }
 }
 
@@ -125,8 +116,10 @@ impl<'a, 'r> FromRequest<'a, 'r> for QueryString<'a> {
                 let items = FormItems::from(s);
                 for (key, value) in items {
                     let key = key.as_str();
-                    let value = value.url_decode().unwrap();
-                    qs.0.insert(key, value);
+                    match value.url_decode() {
+                        Ok(v) => qs.0.insert(key, v),
+                        Err(_) => return Outcome::Failure((Status::BadRequest, E::Unknown)),
+                    };
                 }
             }
             // not found query string
@@ -157,9 +150,7 @@ impl Session {
         let mut sh = Md5::new();
         sh.input_str(Self::KEY);
         let key = sh.result_str();
-        let enc = utils::encrypt(sess_id.as_bytes(), &key.as_bytes())
-            .ok()
-            .unwrap();
+        let enc = utils::encrypt(sess_id.as_bytes(), &key.as_bytes()).unwrap();
 
         enc.to_base64(URL_SAFE)
     }
@@ -183,9 +174,10 @@ impl Session {
                     .and_then(|enc| {
                         utils::decrypt(&enc, &key.as_bytes())
                             .map_err(|_| E::AccessTokenInvalid)
-                            .map(|dec| {
-                                let sess_id = String::from_utf8(dec).unwrap();
-                                Session::init(&mysql_pool, &sess_id)
+                            .and_then(|dec| {
+                                str::from_utf8(&dec)
+                                    .map(|sess_id| Session::init(&mysql_pool, sess_id))
+                                    .map_err(|_| E::AccessTokenInvalid)
                             })
                     });
             }

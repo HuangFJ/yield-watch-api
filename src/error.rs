@@ -58,3 +58,53 @@ impl<'r> Responder<'r> for E {
         Ok(res)
     }
 }
+
+use std::option;
+use regex;
+use std::sync;
+use mysql;
+use std::sync::mpsc;
+use std::str;
+use crypto::symmetriccipher;
+
+impl From<option::NoneError> for E {
+    fn from(_: option::NoneError) -> Self {
+        E::Unknown
+    }
+}
+
+impl From<regex::Error> for E {
+    fn from(_: regex::Error) -> Self {
+        E::Unknown
+    }
+}
+
+impl<T> From<sync::PoisonError<T>> for E {
+    fn from(_: sync::PoisonError<T>) -> Self {
+        E::Unknown
+    }
+}
+
+impl<T> From<mpsc::SendError<T>> for E {
+    fn from(_: mpsc::SendError<T>) -> Self {
+        E::Unknown
+    }
+}
+
+impl From<mysql::Error> for E {
+    fn from(_: mysql::Error) -> Self {
+        E::Unknown
+    }
+}
+
+impl From<str::Utf8Error> for E {
+    fn from(_: str::Utf8Error) -> Self {
+        E::Unknown
+    }
+}
+
+impl From<symmetriccipher::SymmetricCipherError> for E {
+    fn from(_: symmetriccipher::SymmetricCipherError) -> Self {
+        E::Unknown
+    }
+}

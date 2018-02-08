@@ -1,4 +1,4 @@
-#![feature(plugin, custom_derive)]
+#![feature(plugin, custom_derive, try_trait)]
 #![plugin(rocket_codegen)]
 
 extern crate futures;
