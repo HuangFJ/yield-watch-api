@@ -56,7 +56,7 @@ pub fn request_json(url: &str, timeout: Option<u64>) -> Result<Json, Box<Error>>
 
     core.run(work).map_err(From::from)
 }
-
+#[allow(dead_code)]
 pub fn toml2json(toml: Toml) -> Json {
     match toml {
         Toml::String(s) => Json::String(s),
@@ -73,7 +73,7 @@ pub fn toml2json(toml: Toml) -> Json {
         Toml::Datetime(dt) => Json::String(dt.to_string()),
     }
 }
-
+#[allow(dead_code)]
 pub fn json_from_tomlfile(filename: &str) -> Json {
     let mut input = String::new();
     File::open(filename)

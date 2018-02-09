@@ -11,10 +11,11 @@ use crypto::digest::Digest;
 use crypto::md5::Md5;
 use rustc_serialize::base64::{FromBase64, ToBase64, URL_SAFE};
 use rocket::http::Status;
-use std::str;
+use uuid::Uuid;
 
 use error::E;
 use utils;
+use worker;
 
 pub enum Sms {
     Verification { phone: String, code: String },
@@ -105,7 +106,7 @@ impl SmsFactory {
 }
 
 /// QueryString is used for parsing query string. Although Rocket supply a FromForm strait,
-/// but it's behavior is strange. QueryString is more like Flask's `request.args`. It used a 
+/// but it's behavior is strange. QueryString is more like Flask's `request.args`. It used a
 /// HashMap to store items. And you don't need to place a param name in uri.
 #[derive(Debug)]
 pub struct QueryString<'a>(HashMap<&'a str, String>);
@@ -142,64 +143,153 @@ impl<'a> Deref for QueryString<'a> {
 
 #[derive(Debug)]
 pub struct Session {
-    id: String,
+    pub id: String,
+    pub mobile: String,
     user: Option<User>,
+    pub accessed: i64,
+    pub created: i64,
 }
 
-/// This Session is based on mysql database. For reduce db queries, I encrypt session's id 
+/// This Session is based on mysql database. For reduce db queries, I encrypt session's id
 /// as a url-safe access token. When it come in with request, it will be decrypted. If success,
 /// then fetch session and user's infomation from db.
 impl Session {
     pub const KEY: &'static str = "j0n";
     const EXPIRES_IN: i64 = 2592000;
 
-    pub fn id_to_access_token(sess_id: &str) -> String {
+    /// encrypt session id to access_token form
+    pub fn id_to_access_token(sess_id: &str) -> Result<String, E> {
         let mut sh = Md5::new();
         sh.input_str(Self::KEY);
         let key = sh.result_str();
-        let enc = utils::encrypt(sess_id.as_bytes(), &key.as_bytes()).unwrap();
+        let enc = utils::encrypt(sess_id.as_bytes(), &key.as_bytes())?;
 
-        enc.to_base64(URL_SAFE)
+        Ok(enc.to_base64(URL_SAFE))
     }
 
+    /// decrypt access_token to session id
+    pub fn access_token_to_id(access_token: &str) -> Result<String, E> {
+        let mut sh = Md5::new();
+        sh.input_str(Session::KEY);
+        let key = sh.result_str();
+        let enc = access_token
+            .from_base64()
+            .map_err(|_| E::AccessTokenInvalid)?;
+        let dec = utils::decrypt(&enc, &key.as_bytes()).map_err(|_| E::AccessTokenInvalid)?;
+        let sess_id = String::from_utf8(dec).map_err(|_| E::AccessTokenInvalid)?;
+
+        Ok(sess_id)
+    }
+
+    /// borrow user from session if user exist or raise user not found error
+    pub fn user(&self) -> Result<&User, E> {
+        match self.user {
+            Some(ref u) => Ok(u),
+            None => Err(E::UserNotFound),
+        }
+    }
+
+    /// signup user
+    pub fn signup(&mut self, mysql_pool: &Pool, name: &str) -> Result<(), E> {
+        if !self.user.is_none() {
+            return Err(E::SessionIsOwned);
+        }
+        let now = time::get_time().sec;
+
+        mysql_pool
+            .start_transaction(false, None, None)
+            .and_then(|mut t| {
+                let user_id = {
+                    let ret = t.prep_exec(
+                        "INSERT INTO users (name,mobile,created) VALUES (?,?,?)",
+                        (name, &self.mobile, now),
+                    )?;
+                    ret.last_insert_id() as i64
+                };
+                {
+                    t.prep_exec(
+                        "UPDATE _session SET user_id=? WHERE id=?",
+                        (user_id, &self.id),
+                    )?;
+                }
+                self.user = Some(User {
+                    id: user_id,
+                    name: name.to_string(),
+                    mobile: self.mobile.clone(),
+                    created: now,
+                });
+                t.commit()
+            })?;
+        Ok(())
+    }
+
+    /// create session for mobile
+    pub fn new(mysql_pool: &Pool, mobile: &str) -> Result<Self, E> {
+        let now = time::get_time().sec;
+        let user = User::find(mysql_pool, None, Some(mobile)).ok();
+        let id = Uuid::new_v4().hyphenated().to_string();
+        let mut sess = Session {
+            id: id,
+            mobile: mobile.to_string(),
+            user: None,
+            accessed: now,
+            created: now,
+        };
+        let user_id = if user.is_none() {
+            0
+        } else {
+            let user = user.unwrap();
+            let user_id = user.id;
+            sess.user = Some(user);
+            user_id
+        };
+
+        mysql_pool.prep_exec(
+            "INSERT INTO _session (id,mobile,user_id,created,accessed) VALUES (?,?,?,?,?)",
+            (&sess.id, mobile, user_id, now, now),
+        )?;
+        Ok(sess)
+    }
+
+    /// fetch session from id
     pub fn init(mysql_pool: &Pool, sess_id: &str) -> Result<Self, E> {
         let now = time::get_time().sec;
         let ret = mysql_pool
             .prep_exec(
-                "SELECT user_id FROM _session WHERE id=? AND created>?",
-                (sess_id, now - Self::EXPIRES_IN),
+                "SELECT mobile,user_id,accessed,created FROM _session WHERE id=?",
+                (sess_id,),
             )?
             .next();
         if ret.is_none() {
             return Err(E::SessionExpired);
         }
-        let (user_id, created): (i64, i64) = mysql::from_row(ret??);
-        //User::find_by_mobile();
+        let (mobile, user_id, accessed, created): (String, i64, i64, i64) = mysql::from_row(ret??);
+        if accessed + Self::EXPIRES_IN < now {
+            return Err(E::SessionExpired);
+        }
+        let user = if user_id != 0 {
+            User::find(mysql_pool, Some(user_id), None).ok()
+        } else {
+            None
+        };
+
+        mysql_pool.prep_exec("UPDATE _session SET accessed=? WHERE id=?", (now, sess_id))?;
+
         Ok(Session {
             id: sess_id.to_string(),
-            user: None,
+            mobile: mobile,
+            user: user,
+            created: created,
+            accessed: accessed,
         })
     }
 
+    /// search access_token in query string and create session if it exists and is correct
     pub fn from_query_string(mysql_pool: &Pool, qs: &QueryString) -> Result<Self, E> {
         match qs.get("access_token") {
-            Some(value) => {
-                let mut sh = Md5::new();
-                sh.input_str(Session::KEY);
-                let key = sh.result_str();
-
-                return value
-                    .from_base64()
-                    .map_err(|_| E::AccessTokenInvalid)
-                    .and_then(|enc| {
-                        utils::decrypt(&enc, &key.as_bytes())
-                            .map_err(|_| E::AccessTokenInvalid)
-                            .and_then(|dec| {
-                                str::from_utf8(&dec)
-                                    .map(|sess_id| Session::init(&mysql_pool, sess_id))?
-                                    .map_err(|_| E::AccessTokenInvalid)
-                            })
-                    });
+            Some(access_token) => {
+                let sess_id = Session::access_token_to_id(access_token)?;
+                Session::init(mysql_pool, &sess_id)
             }
             None => Err(E::AccessTokenNotFound), // not found access_token in query string
         }
@@ -207,8 +297,80 @@ impl Session {
 }
 
 #[derive(Debug)]
-struct User {
-    id: i64,
-    name: String,
-    mobile: String,
+pub struct User {
+    pub id: i64,
+    pub name: String,
+    pub mobile: String,
+    pub created: i64,
+}
+
+impl User {
+    /// fetch user by user id or mobile
+    fn find(mysql_pool: &Pool, user_id: Option<i64>, mobile: Option<&str>) -> Result<Self, E> {
+        let mut sql = String::from("SELECT id,name,mobile,created FROM users WHERE ");
+        let mut params = Vec::new();
+        if !user_id.is_none() {
+            sql.push_str("id=?");
+            params.push(mysql::Value::from(user_id.unwrap()));
+        } else if !mobile.is_none() {
+            sql.push_str("mobile=?");
+            params.push(mysql::Value::from(mobile.unwrap()));
+        } else {
+            return Err(E::Unknown);
+        }
+        let ret = mysql_pool.prep_exec(sql, params)?.next();
+        if ret.is_none() {
+            return Err(E::UserNotFound);
+        }
+        let (id, name, mobile, created): (i64, String, String, i64) = mysql::from_row(ret??);
+        Ok(User {
+            id: id,
+            name: name,
+            mobile: mobile,
+            created: created,
+        })
+    }
+
+    pub fn states(
+        &self,
+        mysql_pool: &Pool,
+        worker_state: &worker::State,
+    ) -> Result<Vec<UserCoin>, E> {
+        let ret = mysql_pool.prep_exec(
+            "SELECT coin_id,amount,created FROM states WHERE user_id=? ORDER BY created ASC",
+            (self.id,),
+        )?;
+        let mut states: Vec<UserCoin> = vec![];
+
+        for row in ret {
+            match row {
+                Ok(row) => {
+                    let (coin_id, amount, created): (String, f64, i32) = mysql::from_row(row);
+                    match worker_state.coins.iter().find(|&x| x.id == coin_id) {
+                        Some(coin) => {
+                            let balance_cny = coin.price_usd * worker_state.usd2cny_rate * amount;
+                            states.push(UserCoin {
+                                coin_id: coin_id,
+                                amount: amount,
+                                created: created,
+                                balance_cny: balance_cny,
+                            })
+                        }
+                        None => (),
+                    }
+                }
+                Err(_) => (),
+            }
+        }
+
+        Ok(states)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UserCoin {
+    coin_id: String,
+    amount: f64,
+    created: i32,
+    pub balance_cny: f64,
 }

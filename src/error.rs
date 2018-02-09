@@ -17,6 +17,8 @@ pub enum E {
     AccessTokenNotFound,
     AccessTokenInvalid,
     SessionExpired,
+    UserNotFound,
+    SessionIsOwned,
     Unknown,
 }
 
@@ -40,6 +42,8 @@ impl E {
             E::AccessTokenNotFound => (9, "没有令牌。".into()),
             E::AccessTokenInvalid => (10, "无效的令牌。".into()),
             E::SessionExpired => (11, "会话已过期。".into()),
+            E::UserNotFound => (12, "该用户不存在。".into()),
+            E::SessionIsOwned => (13, "会话已有所属。".into()),
             E::Unknown => (999, "未知错误。".into()),
         }
     }
@@ -94,7 +98,8 @@ impl<T> From<mpsc::SendError<T>> for E {
 }
 
 impl From<mysql::Error> for E {
-    fn from(_: mysql::Error) -> Self {
+    fn from(e: mysql::Error) -> Self {
+        println!("{:?}", e);
         E::Unknown
     }
 }
