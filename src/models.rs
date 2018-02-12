@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ops::Deref;
 use rocket::request::{self, FormItems, FromRequest, Request};
 use rocket::Outcome;
@@ -304,7 +304,7 @@ pub struct User {
     pub created: i64,
 }
 
-impl User {
+impl<'a> User {
     /// fetch user by user id or mobile
     fn find(mysql_pool: &Pool, user_id: Option<i64>, mobile: Option<&str>) -> Result<Self, E> {
         let mut sql = String::from("SELECT id,name,mobile,created FROM users WHERE ");
@@ -331,11 +331,26 @@ impl User {
         })
     }
 
+    pub fn balance(&self, mysql_pool: &Pool) -> Result<f64, E> {
+        let ret = mysql_pool
+            .prep_exec(
+                "SELECT amount FROM balance WHERE user_id=? ORDER BY created DESC LIMIT 1",
+                (self.id,),
+            )?
+            .next();
+        if ret.is_none() {
+            Ok(0.0)
+        } else {
+            let balance: f64 = mysql::from_row(ret??);
+            Ok(balance)
+        }
+    }
+
     pub fn states(
         &self,
         mysql_pool: &Pool,
-        worker_state: &worker::State,
-    ) -> Result<Vec<UserCoin>, E> {
+        worker_state: &'a worker::State,
+    ) -> Result<Vec<UserCoin<'a>>, E> {
         let ret = mysql_pool.prep_exec(
             "SELECT coin_id,amount,created FROM states WHERE user_id=? ORDER BY created ASC",
             (self.id,),
@@ -345,19 +360,14 @@ impl User {
         for row in ret {
             match row {
                 Ok(row) => {
-                    let (coin_id, amount, created): (String, f64, i32) = mysql::from_row(row);
-                    match worker_state.coins.iter().find(|&x| x.id == coin_id) {
-                        Some(coin) => {
-                            let balance_cny = coin.price_usd * worker_state.usd2cny_rate * amount;
-                            states.push(UserCoin {
-                                coin_id: coin_id,
-                                amount: amount,
-                                created: created,
-                                balance_cny: balance_cny,
-                            })
-                        }
-                        None => (),
-                    }
+                    let (coin_id, amount, created): (String, f64, i64) = mysql::from_row(row);
+                    let coin = worker_state.coins.iter().find(|&x| x.id == coin_id);
+                    states.push(UserCoin {
+                        coin_id: coin_id,
+                        amount: amount,
+                        created: created,
+                        coin: coin,
+                    });
                 }
                 Err(_) => (),
             }
@@ -367,10 +377,47 @@ impl User {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct UserCoin {
-    coin_id: String,
-    amount: f64,
-    created: i32,
-    pub balance_cny: f64,
+#[derive(Debug, Clone)]
+pub struct UserCoin<'a> {
+    pub coin_id: String,
+    pub amount: f64,
+    pub created: i64,
+    pub coin: Option<&'a worker::Coin>,
+}
+
+pub const POINTS_NUM: i64 = 100;
+
+pub fn historical_prices(
+    mysql_pool: &Pool,
+    coin_id: &String,
+    since_time: i64,
+    bucket: i64,
+) -> Result<BTreeMap<i64, f64>, E> {
+    let mut prices = BTreeMap::<i64, f64>::new();
+    let mut pre_price_usd = 0.0;
+    for row in mysql_pool.prep_exec(
+        "SELECT AVG(price_usd) avg_price_usd,FLOOR(created/?) time_bucket 
+        FROM prices WHERE coin_id=? AND created>=? 
+        GROUP BY time_bucket ORDER BY time_bucket ASC",
+        (bucket, coin_id, (since_time - 10) * bucket),
+    )? {
+        let (avg_price_usd, time_bucket): (f64, i64) = mysql::from_row(row?);
+        if time_bucket < since_time {
+            pre_price_usd = avg_price_usd;
+        } else {
+            prices.insert(time_bucket, avg_price_usd);
+        }
+    }
+
+    let end = time::get_time().sec / bucket;
+    // align price point
+    for key in since_time..end {
+        if prices.contains_key(&key) {
+            pre_price_usd = prices[&key];
+        } else {
+            prices.insert(key, pre_price_usd);
+        }
+    }
+
+    Ok(prices)
 }
