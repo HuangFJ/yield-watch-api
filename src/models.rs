@@ -429,14 +429,15 @@ pub fn coin_history(
 
     // align and fullfil points
     let mut pre_point = (pre_price_usd, 0.0);
+    // {ASC TIMESTAMP => (PRICE, AMOUNT)}
+    let mut full_points = BTreeMap::<i64, (f64, f64)>::new();
     for point_value in (origin_ts / bucket_size)..(end_ts / bucket_size) {
         let point_time = point_value * bucket_size;
         if points.contains_key(&point_time) {
             pre_point = points[&point_time];
-        } else {
-            points.insert(point_time, pre_point);
         }
+        full_points.insert(point_time, pre_point);
     }
 
-    Ok(points)
+    Ok(full_points)
 }
