@@ -385,39 +385,58 @@ pub struct UserCoin<'a> {
     pub coin: Option<&'a worker::Coin>,
 }
 
-pub const POINTS_NUM: i64 = 100;
+pub const POINTS_NUM: i64 = 200;
 
-pub fn historical_prices(
+pub fn coin_history(
     mysql_pool: &Pool,
     coin_id: &String,
-    since_time: i64,
-    bucket: i64,
-) -> Result<BTreeMap<i64, f64>, E> {
-    let mut prices = BTreeMap::<i64, f64>::new();
+    origin_ts: i64,
+    end_ts: i64,
+    states: &Vec<(i64, f64)>, // [(ASC TIMESTAMP, AMOUNT)]
+) -> Result<BTreeMap<i64, (f64, f64)>, E> {
+    let bucket_size = (end_ts - origin_ts) / POINTS_NUM;
+    let bucket_since = states[0].0 / bucket_size;
+    // backward (POINTS_NUM / 10) buckets
+    let bucket_since_time = (bucket_since - POINTS_NUM / 10) * bucket_size;
+    // {ASC TIMESTAMP => (PRICE, AMOUNT)}
+    let mut points = BTreeMap::<i64, (f64, f64)>::new();
     let mut pre_price_usd = 0.0;
     for row in mysql_pool.prep_exec(
-        "SELECT AVG(price_usd) avg_price_usd,FLOOR(created/?) time_bucket 
-        FROM prices WHERE coin_id=? AND created>=? 
-        GROUP BY time_bucket ORDER BY time_bucket ASC",
-        (bucket, coin_id, (since_time - 10) * bucket),
+        "SELECT FLOOR(created/?) bucket_value,AVG(price_usd) avg_price_usd 
+        FROM prices WHERE coin_id=? AND created>? 
+        GROUP BY bucket_value ORDER BY bucket_value ASC",
+        (bucket_size, coin_id, bucket_since_time),
     )? {
-        let (avg_price_usd, time_bucket): (f64, i64) = mysql::from_row(row?);
-        if time_bucket < since_time {
+        let (bucket_value, avg_price_usd): (i64, f64) = mysql::from_row(row?);
+        if bucket_value < bucket_since {
             pre_price_usd = avg_price_usd;
         } else {
-            prices.insert(time_bucket, avg_price_usd);
+            let bucket_time = bucket_value * bucket_size;
+            // fill amount
+            let mut item = (avg_price_usd, 0.0);
+            for idx in 0..(states.len()) {
+                let first = states[idx];
+                let second = states.get(idx + 1);
+                if second.is_none() || (bucket_time >= first.0 && bucket_time < second.unwrap().0) {
+                    item.1 = first.1;
+                    break;
+                }
+            }
+
+            points.insert(bucket_time, item);
         }
     }
 
-    let end = time::get_time().sec / bucket;
-    // align price point
-    for key in since_time..end {
-        if prices.contains_key(&key) {
-            pre_price_usd = prices[&key];
+    // align and fullfil points
+    let mut pre_point = (pre_price_usd, 0.0);
+    for point_value in (origin_ts / bucket_size)..(end_ts / bucket_size) {
+        let point_time = point_value * bucket_size;
+        if points.contains_key(&point_time) {
+            pre_point = points[&point_time];
         } else {
-            prices.insert(key, pre_price_usd);
+            points.insert(point_time, pre_point);
         }
     }
 
-    Ok(prices)
+    Ok(points)
 }
