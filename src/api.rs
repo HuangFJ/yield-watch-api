@@ -290,29 +290,10 @@ fn states(
 /// - get
 /// - http 200:
 /// ```js
-/// {
-///     "balance": 123,
-///     "states":
-///     [
-///       {
-///         "coin_id": "abc",
-///         "amount": 12.3,
-///         "created": 123,
-///         "value_cny": 12.3, //invalid state if this is None
-///         "coin": { //invalid state if this is None
-///             "id": "abc",
-///             "name": "abc",
-///             "symbol": "abc",
-///             "price_usd": 12.3,
-///             "volume_usd": 12.3,
-///             "market_cap_usd": 12.3,
-///             "percent_change_24h": 12.3, //percent
-///             "rank": 123
-///         }
-///       },
-///       ...
-///     ]
-/// }
+/// [
+///     [123, 12.3],
+///     ...
+/// ]
 /// ```
 /// - http 400:
 /// ```js
