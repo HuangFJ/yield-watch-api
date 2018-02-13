@@ -338,9 +338,9 @@ fn states_history(
         // get the coin historical points among timestamp window
         // {ASC TIMESTAMP => (PRICE, AMOUNT)}
         let coin_points = models::coin_history(&mysql_pool, &coin_id, origin_ts, end_ts, &states)?;
-        for (ts, item) in coin_points{
+        for (ts, item) in coin_points {
             let value_cny = item.0 * item.1 * worker_state.usd2cny_rate;
-            if !mix_points.contains_key(&ts){
+            if !mix_points.contains_key(&ts) {
                 mix_points.insert(ts, (ts, value_cny));
             }
             let exist_item = mix_points.get_mut(&ts).unwrap();
@@ -350,4 +350,74 @@ fn states_history(
 
     let ret: Vec<(i64, f64)> = mix_points.values().cloned().collect();
     Ok(Json(json!(ret)))
+}
+
+/// ### get coin detail
+/// - /api/coins/<coin_id>?access_token={access_token}
+/// - Content-Type: application/json
+/// - get
+/// - http 200:
+/// ```js
+/// {
+///     "id": "abc",
+///     "name": "abc",
+///     "symbol": "abc",
+///     "rank": 123,
+///     "price_usd": 12.3,
+///     "volume_usd": 12.3,
+///     "market_cap_usd": 12.3,
+///     "percent_change_24h": 12.3,
+///     "percent_change_1h": 12.3,
+///     "history": [
+///         [123, 12.3],
+///         ...
+///     ]
+/// }
+/// ```
+/// - http 400:
+/// ```js
+/// {
+///     "err": 123,
+///     "msg": "error message"
+/// }
+/// ```
+#[get("/coins/<coin_id>")]
+fn coin(
+    qs: QueryString,
+    mysql_pool: State<Pool>,
+    worker_state_lock: State<Arc<RwLock<worker::State>>>,
+    coin_id: String,
+) -> Result<Json<Value>, E> {
+    let sess = Session::from_query_string(&mysql_pool, &qs)?;
+    sess.user()?;
+    let worker_state = &*(worker_state_lock.read().unwrap());
+
+    let coin = worker_state.coins.iter().find(|&x| x.id == coin_id);
+    if coin.is_none() {
+        return Err(E::CoinNotFound);
+    }
+    let coin = coin.unwrap();
+
+    let end_ts = time::get_time().sec;
+    let origin_ts = end_ts - 7 * 24 * 3600;
+    let states = vec![(origin_ts, 0.0)];
+    let points = models::coin_history(&mysql_pool, &coin_id, origin_ts, end_ts, &states)?;
+
+    let history: Vec<(&i64, f64)> = points
+        .iter()
+        .map(|(k, item)| (k, item.0 * worker_state.usd2cny_rate))
+        .collect();
+
+    Ok(Json(json!({
+        "id": coin.id,
+        "name": coin.name,
+        "symbol": coin.symbol,
+        "rank": coin.rank,
+        "price_usd": coin.price_usd,
+        "volume_usd": coin.volume_usd,
+        "market_cap_usd": coin.market_cap_usd,
+        "percent_change_24h": coin.percent_change_24h,
+        "percent_change_1h": coin.percent_change_1h,
+        "history": history
+    })))
 }

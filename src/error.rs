@@ -19,6 +19,7 @@ pub enum E {
     SessionExpired,
     UserNotFound,
     SessionIsOwned,
+    CoinNotFound,
     Unknown,
 }
 
@@ -44,6 +45,7 @@ impl E {
             E::SessionExpired => (11, "会话已过期。".into()),
             E::UserNotFound => (12, "该用户不存在。".into()),
             E::SessionIsOwned => (13, "会话已有所属。".into()),
+            E::CoinNotFound => (14, "加密币不存在。".into()),
             E::Unknown => (999, "未知错误。".into()),
         }
     }

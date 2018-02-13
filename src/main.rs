@@ -91,7 +91,7 @@ fn main() {
         .attach(Template::fairing())
         .mount(
             "/api",
-            routes![api::sms, api::sms_auth, api::me_get, api::me_post, api::states, api::states_history],
+            routes![api::sms, api::sms_auth, api::me_get, api::me_post, api::states, api::states_history, api::coin],
         )
         .catch(errors![api::bad_gateway, api::bad_request, api::internal_server_error])
         .launch();
