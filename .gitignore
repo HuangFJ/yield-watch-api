@@ -1,8 +1,7 @@
-.*
+/.*
 /target/
 **/*.rs.bk
 Cargo.lock
 Rocket.toml
-INSTALL.md
-/static/
+IGNORE.md
 /src/test.rs

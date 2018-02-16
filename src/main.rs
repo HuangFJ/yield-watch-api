@@ -1,12 +1,14 @@
 #![feature(plugin, custom_derive, try_trait)]
 #![plugin(rocket_codegen)]
 
+extern crate crypto;
 extern crate futures;
 extern crate hyper;
 extern crate hyper_tls;
 extern crate mysql;
 extern crate r2d2;
 extern crate rand;
+extern crate regex;
 extern crate rocket;
 extern crate rocket_contrib;
 extern crate rustc_serialize;
@@ -16,8 +18,6 @@ extern crate serde_json;
 extern crate time;
 extern crate tokio_core;
 extern crate uuid;
-extern crate regex;
-extern crate crypto;
 
 mod utils;
 mod api;
@@ -89,10 +89,25 @@ fn main() {
         .manage(worker_state_lock)
         .manage(sms_fac_lock)
         .attach(Template::fairing())
+        .attach(rocket::fairing::AdHoc::on_response(|_, response| {
+            response.set_raw_header("Access-Control-Allow-Origin", "*");
+        }))
         .mount(
             "/api",
-            routes![api::sms, api::sms_auth, api::me_get, api::me_post, api::states, api::states_history, api::coin],
+            routes![
+                api::sms,
+                api::sms_auth,
+                api::me_get,
+                api::me_post,
+                api::states,
+                api::states_history,
+                api::coin
+            ],
         )
-        .catch(errors![api::bad_gateway, api::bad_request, api::internal_server_error])
+        .catch(errors![
+            api::bad_gateway,
+            api::bad_request,
+            api::internal_server_error
+        ])
         .launch();
 }
