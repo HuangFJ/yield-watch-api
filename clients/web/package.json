@@ -5,6 +5,7 @@
   "dependencies": {
     "antd-mobile": "^2.1.6",
     "axios": "^0.17.1",
+    "rc-form": "^2.1.7",
     "react": "^16.2.0",
     "react-dom": "^16.2.0",
     "react-epic-spinners": "^0.2.0",

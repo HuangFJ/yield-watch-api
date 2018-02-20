@@ -89,8 +89,20 @@ fn main() {
         .manage(worker_state_lock)
         .manage(sms_fac_lock)
         .attach(Template::fairing())
-        .attach(rocket::fairing::AdHoc::on_response(|_, response| {
+        .attach(rocket::fairing::AdHoc::on_response(|request, response| {
             response.set_raw_header("Access-Control-Allow-Origin", "*");
+            response.set_raw_header(
+                "Access-Control-Allow-Methods",
+                "GET,POST,PUT,DELETE,PATCH,OPTIONS",
+            );
+            response.set_raw_header(
+                "Access-Control-Allow-Headers",
+                "Content-Type, Authorization, X-Requested-With",
+            );
+            if request.method() == rocket::http::Method::Options {
+                response.set_status(rocket::http::Status::NoContent);
+                response.take_body();
+            }
         }))
         .mount(
             "/api",
