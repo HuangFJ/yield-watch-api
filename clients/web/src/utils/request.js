@@ -15,9 +15,13 @@ async function checkStatus(response) {
   let error;
   if (response.status === 400) {
     const data = await response.json();
-    if (data.err === 9 || 10 || 11) {
+    if (
+      data.err === 9
+      || data.err === 10
+      || data.err === 11
+    ) {
       error = new Unauthorized(data.msg);
-    } else if(data.err === 12){
+    } else if (data.err === 12) {
       error = new UserNotFound(data.msg);
     } else {
       error = new BadRequest(data.msg);
@@ -25,7 +29,7 @@ async function checkStatus(response) {
   }
 
   if (!error) {
-    error = new AppError(`${response.status}: ${response.statusText}`);
+    error = new AppError(`${response.status} ${response.statusText}`);
     error.response = response;
   }
 

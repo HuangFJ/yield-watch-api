@@ -1,5 +1,4 @@
 import { sms, auth } from '../services/api';
-import { routerRedux } from 'dva/router';
 
 const delay = timeout => {
   return new Promise(resolve => {
@@ -46,9 +45,7 @@ export default {
         type: 'updateState',
         payload: { countdown: false },
       });
-      yield put(routerRedux.push({
-        pathname: '/dashboard',
-      }));
+      yield put({ type: 'app/query' });
     },
 
   },

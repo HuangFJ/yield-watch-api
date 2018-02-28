@@ -1,14 +1,19 @@
 import React from 'react';
-import styles from './index.less'
-import { Icon } from 'antd-mobile';
+import styles from './index.less';
+import { connect } from 'dva';
+import PropTypes from 'prop-types';
 
-const Error = () => (
+const Error = ({ error }) => (
     <div className="content-inner">
         <div className={styles.error}>
-            <Icon type="frown-o" />
-            <h1>404 Not Found</h1>
+            <img src="https://gw.alipayobjects.com/zos/rmsportal/GIyMDJnuqmcqPLpHCSkj.svg" alt="" />
+            <h1>{error.message}</h1>
         </div>
     </div>
 );
 
-export default Error;
+Error.propTypes = {
+    error: PropTypes.object,
+}
+
+export default connect(({ error }) => ({ error }))(Error);

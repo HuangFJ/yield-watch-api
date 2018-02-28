@@ -56,7 +56,10 @@ const Login = ({
                 <List.Item>
                     {getFieldDecorator('strMobile', {
                         rules: [
-                            { required: true },
+                            { 
+                                required: true,
+                                message: '手机号必填',
+                            },
                         ],
                     })(<InputItem type="phone" placeholder="请输入手机号码" />)}
                 </List.Item>

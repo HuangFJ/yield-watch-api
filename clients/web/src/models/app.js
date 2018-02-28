@@ -41,17 +41,20 @@ export default {
             const ret = yield call(me);
             const { refererPathname } = yield select(_ => _.app);
             if (ret.err) {
+                console.log(ret.err);
                 if (ret.err instanceof Unauthorized) {
                     yield put(routerRedux.push({
                         pathname: '/login',
                         search: queryString.stringify({
                             from: refererPathname,
                         }),
-                    }))
+                    }));
                 } else if (ret.err instanceof UserNotFound) {
                     yield put(routerRedux.push({
                         pathname: '/register',
-                    }))
+                    }));
+                } else {
+                    throw ret.err;
                 }
             } else {
                 const user = ret.data;
@@ -59,6 +62,14 @@ export default {
                     type: 'updateState',
                     payload: { user },
                 });
+                if (
+                    window.location.pathname === '/login'
+                    || window.location.pathname === '/register'
+                ) {
+                    yield put(routerRedux.push({
+                        pathname: '/dashboard'
+                    }));
+                }
             }
         },
 

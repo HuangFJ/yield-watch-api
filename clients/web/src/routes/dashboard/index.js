@@ -14,4 +14,4 @@ Dashboard.propTypes = {
     loading: PropTypes.object,
 }
 
-export default connect(({ dashboard, loading }) => (dashboard, loading))(Dashboard);
+export default connect(({ dashboard, loading }) => ({dashboard, loading}))(Dashboard);
