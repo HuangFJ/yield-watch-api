@@ -1,5 +1,11 @@
 import { sms, auth } from '../services/api';
-import {routerRedux} from 'dva/router';
+import { routerRedux } from 'dva/router';
+
+const delay = timeout => {
+  return new Promise(resolve => {
+    setTimeout(resolve, timeout);
+  });
+};
 
 export default {
 
@@ -7,19 +13,38 @@ export default {
 
   state: {
     interval: 0,
+    countdown: false,
   },
 
   effects: {
 
-    *sms({ payload }, { call, put }) {
-      const data = yield call(sms, payload);
-      console.log(data);
-      yield put({ type: 'updateState', payload: data });
+    *sms({ payload }, { call, put, select }) {
+      const { interval } = yield call(sms, payload);
+      yield put({
+        type: 'updateState',
+        payload: { interval, countdown: true },
+      });
+
+      while (true) {
+        let { interval, countdown } = yield select(_ => _.login);
+        console.log(`SMS Countdown: ${countdown}, ${interval}`);
+        if (!countdown || interval <= 0) break;
+        yield call(delay, 1000);
+        interval = interval - 1;
+        yield put({
+          type: 'updateState',
+          payload: { interval },
+        });
+        if (interval <= 0) break;
+      }
     },
 
     *smsAuth({ payload }, { call, put }) {
-      const data = yield call(auth, payload);
-      console.log(data);
+      yield call(auth, payload);
+      yield put({
+        type: 'updateState',
+        payload: { countdown: false },
+      });
       yield put(routerRedux.push({
         pathname: '/dashboard',
       }));
@@ -29,10 +54,13 @@ export default {
 
   reducers: {
 
-    updateState(state, action) {
-      return { ...state, ...action.payload };
+    updateState(state, { payload }) {
+      return {
+        ...state,
+        ...payload,
+      }
     },
 
-  },
+  }
 
 };

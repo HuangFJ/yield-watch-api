@@ -2,26 +2,19 @@ import React from 'react';
 import { Button } from 'antd-mobile';
 import PropTypes from 'prop-types';
 
-class CountdownButton extends React.Component {
-    constructor(props) {
-        super(props);
-
-        this.state = {
-
-        }
-    }
-    componentDidUpdate(){
-        
-    }
-    render() {
-        return (
-            <Button></Button>
-        )
-    }
+const CountdownButton = ({ label, interval, disabled, ...btnProps }) => {
+    const counting = interval > 0;
+    const txtLabel = counting ? `${label}(${interval})` : label;
+    return (
+        <Button disabled={counting || disabled} {...btnProps}>
+            {txtLabel}
+        </Button>
+    )
 }
 
 CountdownButton.propTypes = {
-    countdown: PropTypes.number
+    interval: PropTypes.number,
+    label: PropTypes.string,
 }
 
 export default CountdownButton;

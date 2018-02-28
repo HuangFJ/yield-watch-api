@@ -4,6 +4,7 @@ import { List, InputItem, Button, Flex } from 'antd-mobile';
 import { createForm } from 'rc-form';
 import { PropTypes } from 'prop-types';
 import styles from './index.less';
+import {CountdownButton} from '../../components';
 
 const Login = ({
     login,
@@ -34,7 +35,7 @@ const Login = ({
             payload: { mobile, code },
         });
     });
-
+    
     return (
         <div>
             <List>
@@ -51,9 +52,8 @@ const Login = ({
                             {getFieldDecorator('strCode')(<InputItem type="number" placeholder="请输入验证码" />)}
                         </Flex.Item>
                         <Flex.Item>
-                            <Button type="primary" size="small" disabled={true} onClick={handleSms} loading={loading.effects['login/sms']}>
-                                获取验证码
-                            </Button>
+                            <CountdownButton type="primary" size="small" label="发送验证码" interval={login.interval} 
+                            onClick={handleSms} loading={loading.effects['login/sms']}/>
                         </Flex.Item>
                     </Flex>
 

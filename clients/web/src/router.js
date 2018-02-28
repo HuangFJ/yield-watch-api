@@ -26,6 +26,10 @@ const Routers = ({ history, app }) => {
       path: '/dashboard',
       models: () => [import('./models/dashboard')],
       component: () => import('./routes/dashboard/'),
+    }, {
+      path: '/market',
+      models: () => [import('./models/market')],
+      component: () => import('./routes/market/'),
     },
   ];
 
