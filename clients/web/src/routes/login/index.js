@@ -35,6 +35,20 @@ const Login = ({
             payload: { mobile, code },
         });
     });
+
+    const handleChange = () => validateFields((errors, values) => {
+        let disabled = true;
+        if (!errors) {
+            const { strMobile } = values;
+            if(/\d{3} \d{4} \d{4}/g.test(strMobile) && login.countdown){
+                disabled = false;
+            }
+        }
+        dispatch({
+            type: 'login/updateState',
+            payload: { disabled },
+        });
+    });
     
     return (
         <div>
@@ -49,7 +63,7 @@ const Login = ({
                 <List.Item>
                     <Flex>
                         <Flex.Item>
-                            {getFieldDecorator('strCode')(<InputItem type="number" placeholder="请输入验证码" />)}
+                            {getFieldDecorator('strCode')(<InputItem type="number" onChange={handleChange} placeholder="请输入验证码" />)}
                         </Flex.Item>
                         <Flex.Item>
                             <CountdownButton type="primary" size="small" label="发送验证码" interval={login.interval} 
@@ -59,7 +73,7 @@ const Login = ({
 
                 </List.Item>
                 <List.Item>
-                    <Button type="primary" onClick={handleSubmit} loading={loading.effects['login/smsAuth']}>
+                    <Button disabled={login.disabled} type="primary" onClick={handleSubmit} loading={loading.effects['login/smsAuth']}>
                         登录
                     </Button>
                 </List.Item>

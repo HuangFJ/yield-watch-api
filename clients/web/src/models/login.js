@@ -14,6 +14,7 @@ export default {
   state: {
     interval: 0,
     countdown: false,
+    disabled: true,
   },
 
   effects: {
