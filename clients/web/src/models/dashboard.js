@@ -8,7 +8,7 @@ export default {
 
         setup({ dispatch, history }) {
             history.listen(({ pathname }) => {
-                if (pathname === '/dashboard' || pathname === '/' ) {
+                if (pathname === '/dashboard' || pathname === '/') {
                     dispatch({ type: 'myCoins' });
                     dispatch({ type: 'myValues' });
                 }
@@ -17,22 +17,37 @@ export default {
 
     },
 
-    state: { },
+    state: {
+        coinList: {
+            balance: 0,
+            states: [],
+        },
+        values: [],
+    },
 
     effects: {
 
-        *myCoins(_, { call, put }) {
-            const data = yield call(my_coins);
-            console.log(data);
+        *myCoins(_, { call, put, select }) {
+            const coinList = yield call(my_coins);
+            yield put({ type: 'updateState', payload: { coinList } });
         },
 
         *myValues(_, { call, put }) {
-            const data = yield call(my_values);
-            console.log(data);
+            const values = yield call(my_values);
+            yield put({ type: 'updateState', payload: { values } });
         },
-        
+
     },
 
-    reducers: { },
+    reducers: {
+
+        updateState(state, { payload }) {
+            return {
+                ...state,
+                ...payload,
+            }
+        },
+
+    },
 
 }

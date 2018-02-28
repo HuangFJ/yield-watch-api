@@ -4,7 +4,7 @@ import { List, InputItem, Button, Flex } from 'antd-mobile';
 import { createForm } from 'rc-form';
 import { PropTypes } from 'prop-types';
 import styles from './index.less';
-import {CountdownButton} from '../../components';
+import { CountdownButton } from './components';
 
 const Login = ({
     login,
@@ -40,7 +40,7 @@ const Login = ({
         let disabled = true;
         if (!errors) {
             const { strMobile } = values;
-            if(/\d{3} \d{4} \d{4}/g.test(strMobile) && login.countdown){
+            if (/\d{3} \d{4} \d{4}/g.test(strMobile) && login.countdown) {
                 disabled = false;
             }
         }
@@ -49,14 +49,14 @@ const Login = ({
             payload: { disabled },
         });
     });
-    
+
     return (
         <div>
             <List>
                 <List.Item>
                     {getFieldDecorator('strMobile', {
                         rules: [
-                            { 
+                            {
                                 required: true,
                                 message: '手机号必填',
                             },
@@ -69,8 +69,8 @@ const Login = ({
                             {getFieldDecorator('strCode')(<InputItem type="number" onChange={handleChange} placeholder="请输入验证码" />)}
                         </Flex.Item>
                         <Flex.Item>
-                            <CountdownButton type="primary" size="small" label="发送验证码" interval={login.interval} 
-                            onClick={handleSms} loading={loading.effects['login/sms']}/>
+                            <CountdownButton type="primary" size="small" label="发送验证码" interval={login.interval}
+                                onClick={handleSms} loading={loading.effects['login/sms']} />
                         </Flex.Item>
                     </Flex>
 

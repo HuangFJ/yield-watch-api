@@ -2,10 +2,13 @@ import React from 'react';
 import { connect } from 'dva';
 import PropTypes from 'prop-types';
 import styles from './index.less';
+import {CoinList} from './components';
 
 const Dashboard = ({ dashboard, loading }) => {
     return (
-        <div>hi</div>
+        <div>
+            <CoinList data={dashboard.coinList.states} />
+        </div>
     )
 }
 
