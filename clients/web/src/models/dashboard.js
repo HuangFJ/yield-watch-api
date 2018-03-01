@@ -18,10 +18,9 @@ export default {
     },
 
     state: {
-        coinList: {
-            balance: 0,
-            states: [],
-        },
+        totalValue: 0,
+        totalInvest: 0,
+        coinList: [],
         values: [],
     },
 
@@ -29,22 +28,36 @@ export default {
 
         *myCoins(_, { call, put, select }) {
             const coinList = yield call(my_coins);
-            yield put({ type: 'updateState', payload: { coinList } });
+            yield put({ type: 'updateCoins', payload: coinList });
         },
 
         *myValues(_, { call, put }) {
-            const values = yield call(my_values);
-            yield put({ type: 'updateState', payload: { values } });
+            const data = yield call(my_values);
+            yield put({ type: 'updateValues', payload: data });
         },
 
     },
 
     reducers: {
 
-        updateState(state, { payload }) {
+        updateCoins(state, { payload }) {
+            const coinList = payload.states;
+            const totalValue = coinList.reduce(
+                (accumulator, curVal) => accumulator + curVal.value_cny,
+                0
+            ).toFixed(2);
             return {
                 ...state,
-                ...payload,
+                coinList,
+                totalValue,
+            }
+        },
+
+        updateValues(state, { payload }) {
+            const values = payload.map(datum => [datum[0] * 1000, datum[1]]);
+            return {
+                ...state,
+                values,
             }
         },
 
