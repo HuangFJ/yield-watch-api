@@ -89,7 +89,7 @@ fn main() {
         .manage(worker_state_lock)
         .manage(sms_fac_lock)
         .attach(Template::fairing())
-        .attach(rocket::fairing::AdHoc::on_response(|request, response| {
+        .attach(rocket::fairing::AdHoc::on_response(|_, response| {
             response.set_raw_header("Access-Control-Allow-Origin", "*");
             response.set_raw_header(
                 "Access-Control-Allow-Methods",
@@ -99,10 +99,7 @@ fn main() {
                 "Access-Control-Allow-Headers",
                 "Content-Type, Authorization, X-Requested-With",
             );
-            if request.method() == rocket::http::Method::Options {
-                response.set_status(rocket::http::Status::NoContent);
-                response.take_body();
-            }
+            response.set_raw_header("Access-Control-Max-Age", "86400");
         }))
         .mount(
             "/api",
@@ -113,7 +110,9 @@ fn main() {
                 api::me_post,
                 api::states,
                 api::states_history,
-                api::coin
+                api::coin,
+                api::coins,
+                api::options_all,
             ],
         )
         .catch(errors![

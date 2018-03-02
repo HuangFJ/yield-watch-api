@@ -1,8 +1,10 @@
 use std::sync::{Arc, Mutex, RwLock};
 use std::collections::{BTreeMap, HashMap};
+use std::path::PathBuf;
 use time;
 use mysql::Pool;
 use rocket::State;
+use rocket::response::status;
 use rocket_contrib::{Json, Value};
 use regex::Regex;
 
@@ -420,4 +422,31 @@ fn coin(
         "percent_change_1h": coin.percent_change_1h,
         "history": history
     })))
+}
+
+#[get("/coins")]
+fn coins(
+    worker_state_lock: State<Arc<RwLock<worker::State>>>,
+) -> Result<Json<Value>, E>{
+    let worker_state = &*(worker_state_lock.read().unwrap());
+    let mut arr = vec![];
+    for coin in worker_state.coins.iter() {
+        arr.push(json!({
+            "id": coin.id,
+            "name": coin.name,
+            "symbol": coin.symbol,
+            "rank": coin.rank,
+            "price_usd": coin.price_usd,
+            "volume_usd": coin.volume_usd,
+            "market_cap_usd": coin.market_cap_usd,
+            "percent_change_24h": coin.percent_change_24h,
+            "percent_change_1h": coin.percent_change_1h,
+        }))
+    }
+    Ok(Json(json!(arr)))
+}
+
+#[options("/<_path..>", rank = 1)]
+fn options_all(_path: PathBuf) -> status::NoContent {
+    status::NoContent
 }
