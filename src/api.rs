@@ -344,9 +344,10 @@ fn states_history(
             let value_cny = item.0 * item.1 * worker_state.usd2cny_rate;
             if !mix_points.contains_key(&ts) {
                 mix_points.insert(ts, (ts, value_cny));
+            } else {
+                let exist_item = mix_points.get_mut(&ts).unwrap();
+                exist_item.1 = exist_item.1 + value_cny;
             }
-            let exist_item = mix_points.get_mut(&ts).unwrap();
-            exist_item.1 = exist_item.1 + value_cny;
         }
     }
 
