@@ -33,7 +33,7 @@ pub struct Coin {
 impl Coin {
     fn from_json(j: &serde_json::Value) -> Coin {
         Coin {
-            id: (j["id"]).as_str().unwrap().into(),
+            id: j["id"].as_str().unwrap().into(),
             name: j["name"].as_str().unwrap().into(),
             symbol: j["symbol"].as_str().unwrap().into(),
             rank: j["rank"].as_str().unwrap().parse().unwrap(),
@@ -67,7 +67,7 @@ impl Coin {
             price_cny: j["price_cny"].as_str().unwrap_or("0").parse().unwrap(),
             volume_cny: j["24h_volume_cny"].as_str().unwrap_or("0").parse().unwrap(),
             market_cap_cny: j["market_cap_cny"].as_str().unwrap_or("0").parse().unwrap(),
-            no: 0,
+            no: j["no"].as_i64().unwrap_or(0),
         }
     }
 }
@@ -123,7 +123,7 @@ pub fn refresh_rates(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<E
 
 pub fn refresh_coins(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<Error>> {
     // fetch all coins price instantly
-    let value = utils::request_json(
+    let mut value = utils::request_json(
         "https://api.coinmarketcap.com/v1/ticker/?convert=CNY&limit=10000",
         None,
     )?;
@@ -133,11 +133,13 @@ pub fn refresh_coins(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<E
         None,
     )?;
 
-    let mut quick_map = HashMap::<&str, i64>::new();
-    for row in quick_value.as_array().unwrap().iter() {
-        let id = row["slug"].as_str().unwrap();
-        let no = row["id"].as_i64().unwrap();
-        quick_map.insert(id, no);
+    let mut quick_map = HashMap::<&str, serde_json::Value>::new();
+    for row in quick_value.as_array().unwrap() {
+        quick_map.insert(row["slug"].as_str().unwrap(), row["id"].clone());
+    }
+
+    for row in value.as_array_mut().unwrap() {
+        row["no"] = quick_map[row["id"].as_str().unwrap()].clone();
     }
 
     let mut sql_string = String::from(
@@ -146,9 +148,8 @@ pub fn refresh_coins(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<E
     let mut data: Vec<Coin> = vec![];
     let mut params = vec![];
 
-    for row in value.as_array().unwrap().iter() {
-        let mut item = Coin::from_json(row);
-        item.no = quick_map[item.id.as_str()];
+    for row in value.as_array().unwrap() {
+        let item = Coin::from_json(row);
         sql_string.push_str("(?,?,?,?,?,?,?,?),");
         // Vec store only similar type, so we wrap the raw type with mysql Value
         params.push(Value::from(item.id.clone()));
