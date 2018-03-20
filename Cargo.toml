@@ -7,10 +7,6 @@ authors = ["Jon Huang <biohfj@gmail.com>"]
 name = "yield_watch"
 path = "src/main.rs"
 
-[[bin]]
-name = "test"
-path = "src/test.rs"
-
 [dependencies]
 rocket = "*"
 rocket_codegen = "*"

@@ -264,6 +264,7 @@ fn states(
                 "market_cap_usd": coin.market_cap_usd,
                 "percent_change_24h": coin.percent_change_24h,
                 "rank": coin.rank,
+                "no": coin.no,
             });
             rt_states_list.push(json!({
                 "coin_id": state.coin_id,
@@ -402,7 +403,7 @@ fn coin(
     let coin = coin.unwrap();
 
     let end_ts = time::get_time().sec;
-    let origin_ts = end_ts - 7 * 24 * 3600;
+    let origin_ts = end_ts - 30 * 24 * 3600;
     let states = vec![(origin_ts, 0.0)];
     let points = models::coin_history(&mysql_pool, &coin_id, origin_ts, end_ts, &states)?;
 
@@ -421,7 +422,8 @@ fn coin(
         "market_cap_usd": coin.market_cap_usd,
         "percent_change_24h": coin.percent_change_24h,
         "percent_change_1h": coin.percent_change_1h,
-        "history": history
+        "history": history,
+        "no": coin.no,
     })))
 }
 
@@ -442,6 +444,7 @@ fn coins(
             "market_cap_usd": coin.market_cap_usd,
             "percent_change_24h": coin.percent_change_24h,
             "percent_change_1h": coin.percent_change_1h,
+            "no": coin.no,
         }))
     }
     Ok(Json(json!(arr)))

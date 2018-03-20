@@ -3,6 +3,7 @@ use std::sync::{Arc, RwLock};
 use serde_json;
 use mysql::{self, Pool, Value};
 use time;
+use std::collections::HashMap;
 
 use utils;
 
@@ -26,6 +27,7 @@ pub struct Coin {
     pub price_cny: f64,
     pub volume_cny: f64,
     pub market_cap_cny: f64,
+    pub no: i64,
 }
 
 impl Coin {
@@ -65,6 +67,7 @@ impl Coin {
             price_cny: j["price_cny"].as_str().unwrap_or("0").parse().unwrap(),
             volume_cny: j["24h_volume_cny"].as_str().unwrap_or("0").parse().unwrap(),
             market_cap_cny: j["market_cap_cny"].as_str().unwrap_or("0").parse().unwrap(),
+            no: 0,
         }
     }
 }
@@ -125,15 +128,28 @@ pub fn refresh_coins(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<E
         None,
     )?;
 
+    let quick_value = utils::request_json(
+        "https://s2.coinmarketcap.com/generated/search/quick_search.json",
+        None,
+    )?;
+
+    let mut quick_map = HashMap::<&str, i64>::new();
+    for row in quick_value.as_array().unwrap().iter() {
+        let id = row["slug"].as_str().unwrap();
+        let no = row["id"].as_i64().unwrap();
+        quick_map.insert(id, no);
+    }
+
     let mut sql_string = String::from(
-        "INSERT INTO coins (id,name,symbol,rank,available_supply,total_supply,max_supply) VALUES ",
+        "INSERT INTO coins (id,name,symbol,rank,available_supply,total_supply,max_supply,no) VALUES ",
     );
     let mut data: Vec<Coin> = vec![];
     let mut params = vec![];
 
     for row in value.as_array().unwrap().iter() {
-        let item = Coin::from_json(row);
-        sql_string.push_str("(?,?,?,?,?,?,?),");
+        let mut item = Coin::from_json(row);
+        item.no = quick_map[item.id.as_str()];
+        sql_string.push_str("(?,?,?,?,?,?,?,?),");
         // Vec store only similar type, so we wrap the raw type with mysql Value
         params.push(Value::from(item.id.clone()));
         params.push(Value::from(item.name.clone()));
@@ -142,6 +158,7 @@ pub fn refresh_coins(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<E
         params.push(Value::from(item.available_supply));
         params.push(Value::from(item.total_supply));
         params.push(Value::from(item.max_supply));
+        params.push(Value::from(item.no));
         data.push(item);
     }
     sql_string.pop();
@@ -153,6 +170,7 @@ pub fn refresh_coins(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<E
          ,available_supply=VALUES(available_supply)\
          ,total_supply=VALUES(total_supply)\
          ,max_supply=VALUES(max_supply)\
+         ,no=VALUES(no)\
          ,score=score+1",
     );
 

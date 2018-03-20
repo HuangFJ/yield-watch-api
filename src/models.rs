@@ -385,7 +385,7 @@ pub struct UserCoin<'a> {
     pub coin: Option<&'a worker::Coin>,
 }
 
-pub const POINTS_NUM: i64 = 200;
+pub const POINTS_NUM: i64 = 100;
 
 pub fn coin_history(
     mysql_pool: &Pool,
