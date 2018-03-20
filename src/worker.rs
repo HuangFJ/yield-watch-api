@@ -238,7 +238,7 @@ pub fn refresh_prices(pool: &Pool) -> Result<u64, Box<Error>> {
 
             let ts = price_usd[0].as_u64().unwrap() / 1000;
             let p_usd = price_usd[1].as_f64().unwrap();
-            if p_usd == 0f64{
+            if p_usd == 0f64 {
                 continue;
             }
             let p_btc = json["price_btc"][idx][1].as_f64().unwrap_or(0.0);

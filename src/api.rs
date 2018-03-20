@@ -428,9 +428,7 @@ fn coin(
 }
 
 #[get("/coins")]
-fn coins(
-    worker_state_lock: State<Arc<RwLock<worker::State>>>,
-) -> Result<Json<Value>, E>{
+fn coins(worker_state_lock: State<Arc<RwLock<worker::State>>>) -> Result<Json<Value>, E> {
     let worker_state = &*(worker_state_lock.read().unwrap());
     let mut arr = vec![];
     for coin in worker_state.coins.iter() {

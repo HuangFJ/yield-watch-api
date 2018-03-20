@@ -12,7 +12,7 @@ pub fn hmac_sha1(key: &[u8], message: &[u8]) -> [u8; SHA1_DIGEST_BYTES] {
     // set constants for HMAC
     let inner_pad_byte: u8 = 0x36;
     let outer_pad_byte: u8 = 0x5c;
-    let key_pad_byte:   u8 = 0x00;
+    let key_pad_byte: u8 = 0x00;
 
     // instantiate internal structures
     let mut sha1_ctx = sha1::Sha1::new();
