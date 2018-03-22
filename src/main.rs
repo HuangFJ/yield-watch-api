@@ -89,8 +89,18 @@ fn main() {
         .manage(worker_state_lock)
         .manage(sms_fac_lock)
         .attach(Template::fairing())
-        .attach(rocket::fairing::AdHoc::on_response(|_, response| {
-            response.set_raw_header("Access-Control-Allow-Origin", "*");
+        .attach(rocket::fairing::AdHoc::on_response(|req, response| {
+            let raw = req.headers().get_one("Origin");
+            if raw == None {
+                return;
+            }
+            let allows = vec!["https://yield.watch"];
+            let origin = raw.unwrap();
+            if !allows.contains(&origin) {
+                return;
+            }
+
+            response.set_raw_header("Access-Control-Allow-Origin", origin.to_string());
             response.set_raw_header(
                 "Access-Control-Allow-Methods",
                 "GET,POST,PUT,DELETE,PATCH,OPTIONS",
