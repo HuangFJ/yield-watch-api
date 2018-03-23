@@ -133,13 +133,13 @@ pub fn refresh_coins(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<E
         None,
     )?;
 
-    let mut quick_map = HashMap::<&str, serde_json::Value>::new();
+    let mut quick_map = HashMap::<&str, i64>::new();
     for row in quick_value.as_array().unwrap() {
-        quick_map.insert(row["slug"].as_str().unwrap(), row["id"].clone());
+        quick_map.insert(row["slug"].as_str().unwrap(), row["id"].as_i64().unwrap());
     }
 
     for row in value.as_array_mut().unwrap() {
-        row["no"] = quick_map[row["id"].as_str().unwrap()].clone();
+        row["no"] = json!(quick_map.get(row["id"].as_str().unwrap()).unwrap_or(&0));
     }
 
     let mut sql_string = String::from(
