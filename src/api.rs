@@ -60,12 +60,7 @@ fn sms(
     if !Regex::new(r"^1\d{10}$")?.is_match(mobile) {
         return Err(E::SmsMobileInvalid);
     }
-    let (code, interval) = sms_fac.gen_code(&mysql_pool, mobile)?;
-    sms_fac.send(Sms::Verification {
-        phone: mobile.to_string(),
-        code: code.to_string(),
-    })?;
-    println!("sms code: {}, interval: {}", code, interval);
+    let interval = sms_fac.gen_code(&mysql_pool, mobile)?;
 
     Ok(Json(json!({
         "interval": interval,

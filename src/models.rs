@@ -12,6 +12,7 @@ use crypto::md5::Md5;
 use rustc_serialize::base64::{FromBase64, ToBase64, URL_SAFE};
 use rocket::http::Status;
 use uuid::Uuid;
+use std::io::{Error, ErrorKind};
 
 use error::E;
 use utils;
@@ -28,7 +29,7 @@ pub struct SmsFactory {
 }
 
 impl SmsFactory {
-    pub fn gen_code(&self, mysql_pool: &Pool, mobile: &str) -> Result<(i64, i64), E> {
+    pub fn gen_code(&self, mysql_pool: &Pool, mobile: &str) -> Result<i64, E> {
         let now = time::get_time().sec;
         let row = mysql_pool
             .prep_exec(
@@ -46,12 +47,24 @@ impl SmsFactory {
             return Err(E::SmsSendInterval(send_times * 60));
         }
         let code = rand::thread_rng().gen_range(1000, 9999);
-        mysql_pool.prep_exec(
-            "INSERT INTO sms (mobile,code,err_times,created) VALUES (?,?,?,?)",
-            (mobile, code, 0, now),
-        )?;
+        mysql_pool
+            .start_transaction(false, None, None)
+            .and_then(|mut t| {
+                t.prep_exec(
+                    "INSERT INTO sms (mobile,code,err_times,created) VALUES (?,?,?,?)",
+                    (mobile, code, 0, now),
+                )?;
+                self.send(Sms::Verification {
+                    phone: mobile.to_string(),
+                    code: code.to_string(),
+                }).map_err(|_| Error::new(ErrorKind::Other, "sms worker was down"))?;
+                t.commit()
+            })
+            .map_err(|_| E::SmsSendError)?;
+        let interval = (send_times + 1) * 60;
+        println!("sms code: {}, interval: {}", code, interval);
 
-        Ok((code, (send_times + 1) * 60))
+        Ok(interval)
     }
 
     pub fn check_code(&self, mysql_pool: &Pool, mobile: &str, code_input: u32) -> Result<(), E> {
