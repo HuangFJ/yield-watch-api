@@ -9,7 +9,7 @@ use rocket_contrib::{Json, Value};
 use regex::Regex;
 
 use worker;
-use models::{self, QueryString, Session, Sms, SmsFactory};
+use models::{self, QueryString, Session, SmsFactory};
 use error::E;
 
 #[error(502)]
@@ -139,13 +139,19 @@ fn sms_auth(
 /// }
 /// ```
 #[get("/me")]
-fn me_get(qs: QueryString, mysql_pool: State<Pool>) -> Result<Json<Value>, E> {
+fn me_get(
+    qs: QueryString,
+    mysql_pool: State<Pool>,
+    worker_state_lock: State<Arc<RwLock<worker::State>>>,
+) -> Result<Json<Value>, E> {
     let sess = Session::from_query_string(&mysql_pool, &qs)?;
     let user = sess.user()?;
+    let worker_state = &*(worker_state_lock.read().unwrap());
     Ok(Json(json!({
         "id": user.id,
         "name": user.name,
-        "created": user.created
+        "created": user.created,
+        "usd2cny_rate": worker_state.usd2cny_rate
     })))
 }
 
@@ -233,7 +239,7 @@ fn states(
     let user = sess.user()?;
     let worker_state = &*(worker_state_lock.read().unwrap());
     let balance = user.balance(&mysql_pool)?;
-    let mut user_states = user.states(&mysql_pool, worker_state)?;
+    let mut user_states = user.states(&mysql_pool, worker_state, None)?;
     user_states.reverse();
 
     let mut rt_states_list = vec![];
@@ -282,6 +288,60 @@ fn states(
     })))
 }
 
+#[get("/states/<coin_id>")]
+fn coin_states(
+    qs: QueryString,
+    mysql_pool: State<Pool>,
+    worker_state_lock: State<Arc<RwLock<worker::State>>>,
+    coin_id: String,
+) -> Result<Json<Value>, E> {
+    let sess = Session::from_query_string(&mysql_pool, &qs)?;
+    let user = sess.user()?;
+    let worker_state = &*(worker_state_lock.read().unwrap());
+    let ret = user.states(&mysql_pool, worker_state, Some(&coin_id))?;
+    let data: Vec<Value> = ret.iter().map(|record| {
+        json!({
+            "id": record.id,
+            "amount": record.amount,
+            "created": record.created,
+        })
+    }).collect();
+
+    Ok(Json(json!(data)))
+}
+
+#[put("/states", format = "application/json", data = "<data>")]
+fn put_states(
+    qs: QueryString,
+    mysql_pool: State<Pool>,
+    data: Json<Value>,
+) -> Result<Json<Value>, E> {
+    let sess = Session::from_query_string(&mysql_pool, &qs)?;
+    let user = sess.user()?;
+    println!("{:?}", data);
+    let id = data["id"].as_i64()?;
+    let coin_id = data["coin_id"].as_str()?;
+    let created = data["created"].as_i64()?;
+    let amount = data["amount"].as_f64()?;
+    user.put_states(&mysql_pool, id, coin_id, created, amount)?;
+
+    Ok(Json(json!(null)))
+}
+
+#[delete("/states", format = "application/json", data = "<data>")]
+fn delete_states(
+    qs: QueryString,
+    mysql_pool: State<Pool>,
+    data: Json<Value>,
+) -> Result<Json<Value>, E> {
+    let sess = Session::from_query_string(&mysql_pool, &qs)?;
+    let user = sess.user()?;
+    let id = data["id"].as_i64()?;
+    user.del_states(&mysql_pool, id)?;
+
+    Ok(Json(json!(null)))
+}
+
 /// ### user portfolio historical value
 /// - /api/states/history?access_token={access_token}
 /// - Content-Type: application/json
@@ -310,7 +370,7 @@ fn states_history(
     let user = sess.user()?;
     let worker_state = &*(worker_state_lock.read().unwrap());
     // all states order by created time asc
-    let user_states = user.states(&mysql_pool, worker_state)?;
+    let user_states = user.states(&mysql_pool, worker_state, None)?;
 
     let end_ts = time::get_time().sec;
     let mut origin_ts = 0i64;

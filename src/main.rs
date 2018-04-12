@@ -123,6 +123,9 @@ fn main() {
                 api::coin,
                 api::coins,
                 api::options_all,
+                api::coin_states,
+                api::put_states,
+                api::delete_states,
             ],
         )
         .catch(errors![

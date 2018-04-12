@@ -359,23 +359,62 @@ impl<'a> User {
         }
     }
 
+    pub fn put_states(
+        &self,
+        mysql_pool: &Pool,
+        id: i64,
+        coin_id: &str,
+        created: i64,
+        amount: f64,
+    ) -> Result<(), E> {
+        if id > 0 {
+            mysql_pool.prep_exec(
+                "UPDATE states SET coin_id=?,amount=?,created=? WHERE id=? AND user_id=?",
+                (coin_id, amount, created, id, self.id),
+            )?;
+        } else {
+            mysql_pool.prep_exec(
+                "INSERT INTO states (user_id,coin_id,amount,created) VALUES (?,?,?,?)",
+                (self.id, coin_id, amount, created),
+            )?;
+        }
+
+        Ok(())
+    }
+
+    pub fn del_states(&self, mysql_pool: &Pool, id: i64) -> Result<(), E> {
+        mysql_pool.prep_exec("DELETE FROM states WHERE user_id=? AND id=?", (self.id, id))?;
+
+        Ok(())
+    }
+
     pub fn states(
         &self,
         mysql_pool: &Pool,
         worker_state: &'a worker::State,
+        coin_id: Option<&str>,
     ) -> Result<Vec<UserCoin<'a>>, E> {
-        let ret = mysql_pool.prep_exec(
-            "SELECT coin_id,amount,created FROM states WHERE user_id=? ORDER BY created ASC",
-            (self.id,),
-        )?;
+        let ret = if coin_id.is_none() {
+            mysql_pool.prep_exec(
+                "SELECT id,coin_id,amount,created FROM states WHERE user_id=? ORDER BY created ASC",
+                (self.id,),
+            )?
+        } else {
+            mysql_pool.prep_exec(
+                "SELECT id,coin_id,amount,created FROM states WHERE user_id=? AND coin_id=? ORDER BY created ASC",
+                (self.id, coin_id.unwrap()),
+            )?
+        };
         let mut states: Vec<UserCoin> = vec![];
 
         for row in ret {
             match row {
                 Ok(row) => {
-                    let (coin_id, amount, created): (String, f64, i64) = mysql::from_row(row);
+                    let (id, coin_id, amount, created): (i64, String, f64, i64) =
+                        mysql::from_row(row);
                     let coin = worker_state.coins.iter().find(|&x| x.id == coin_id);
                     states.push(UserCoin {
+                        id: id,
                         coin_id: coin_id,
                         amount: amount,
                         created: created,
@@ -392,6 +431,7 @@ impl<'a> User {
 
 #[derive(Debug, Clone)]
 pub struct UserCoin<'a> {
+    pub id: i64,
     pub coin_id: String,
     pub amount: f64,
     pub created: i64,
