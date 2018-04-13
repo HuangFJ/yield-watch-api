@@ -447,7 +447,8 @@ pub fn coin_history(
     end_ts: i64,
     states: &Vec<(i64, f64)>, // [(ASC TIMESTAMP, AMOUNT)]
 ) -> Result<BTreeMap<i64, (f64, f64)>, E> {
-    let bucket_size = (end_ts - origin_ts) / POINTS_NUM;
+    let mut bucket_size = (end_ts - origin_ts) / POINTS_NUM;
+    bucket_size = if bucket_size > 0 { bucket_size } else { 1 };
     let bucket_since = states[0].0 / bucket_size;
     // backward (POINTS_NUM / 10) buckets
     let bucket_since_time = (bucket_since - POINTS_NUM / 10) * bucket_size;
