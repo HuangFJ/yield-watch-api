@@ -344,19 +344,54 @@ impl<'a> User {
         })
     }
 
-    pub fn balance(&self, mysql_pool: &Pool) -> Result<f64, E> {
+    pub fn put_balance(
+        &self,
+        mysql_pool: &Pool,
+        id: i64,
+        created: i64,
+        amount: f64,
+    ) -> Result<(), E> {
+        if id > 0 {
+            mysql_pool.prep_exec(
+                "UPDATE balance SET amount=?,created=? WHERE id=? AND user_id=?",
+                (amount, created, id, self.id),
+            )?;
+        } else {
+            mysql_pool.prep_exec(
+                "INSERT INTO balance (user_id,amount,created) VALUES (?,?,?)",
+                (self.id, amount, created),
+            )?;
+        }
+
+        Ok(())
+    }
+
+    pub fn del_balance(&self, mysql_pool: &Pool, id: i64) -> Result<(), E> {
+        mysql_pool.prep_exec("DELETE FROM balance WHERE user_id=? AND id=?", (self.id, id))?;
+
+        Ok(())
+    }
+
+    pub fn balance(&self, mysql_pool: &Pool) -> Result<Vec<(i64, f64, i64)>, E> {
         let ret = mysql_pool
             .prep_exec(
-                "SELECT amount FROM balance WHERE user_id=? ORDER BY created DESC LIMIT 1",
+                "SELECT created,amount,id FROM balance WHERE user_id=? ORDER BY created DESC",
                 (self.id,),
-            )?
-            .next();
-        if ret.is_none() {
-            Ok(0.0)
-        } else {
-            let balance: f64 = mysql::from_row(ret??);
-            Ok(balance)
+            )?;
+
+        let mut data = vec![];
+
+        for row in ret {
+            match row {
+                Ok(row) => {
+                    let (created, amount, id): (i64, f64, i64) = mysql::from_row(row);
+                    data.push((created, amount, id));
+                }
+                Err(_) => (),
+            }
         }
+        
+        Ok(data)
     }
 
     pub fn put_states(

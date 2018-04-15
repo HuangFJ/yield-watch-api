@@ -126,6 +126,8 @@ fn main() {
                 api::coin_states,
                 api::put_states,
                 api::delete_states,
+                api::put_balance,
+                api::delete_balance,
             ],
         )
         .catch(errors![

@@ -318,7 +318,6 @@ fn put_states(
 ) -> Result<Json<Value>, E> {
     let sess = Session::from_query_string(&mysql_pool, &qs)?;
     let user = sess.user()?;
-    println!("{:?}", data);
     let id = data["id"].as_i64()?;
     let coin_id = data["coin_id"].as_str()?;
     let created = data["created"].as_i64()?;
@@ -338,6 +337,36 @@ fn delete_states(
     let user = sess.user()?;
     let id = data["id"].as_i64()?;
     user.del_states(&mysql_pool, id)?;
+
+    Ok(Json(json!(null)))
+}
+
+#[put("/balance", format = "application/json", data = "<data>")]
+fn put_balance(
+    qs: QueryString,
+    mysql_pool: State<Pool>,
+    data: Json<Value>,
+) -> Result<Json<Value>, E> {
+    let sess = Session::from_query_string(&mysql_pool, &qs)?;
+    let user = sess.user()?;
+    let id = data["id"].as_i64()?;
+    let created = data["created"].as_i64()?;
+    let amount = data["amount"].as_f64()?;
+    user.put_balance(&mysql_pool, id, created, amount)?;
+
+    Ok(Json(json!(null)))
+}
+
+#[delete("/balance", format = "application/json", data = "<data>")]
+fn delete_balance(
+    qs: QueryString,
+    mysql_pool: State<Pool>,
+    data: Json<Value>,
+) -> Result<Json<Value>, E> {
+    let sess = Session::from_query_string(&mysql_pool, &qs)?;
+    let user = sess.user()?;
+    let id = data["id"].as_i64()?;
+    user.del_balance(&mysql_pool, id)?;
 
     Ok(Json(json!(null)))
 }
