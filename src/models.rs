@@ -375,7 +375,7 @@ impl<'a> User {
     pub fn balance(&self, mysql_pool: &Pool) -> Result<Vec<(i64, f64, i64)>, E> {
         let ret = mysql_pool
             .prep_exec(
-                "SELECT created,amount,id FROM balance WHERE user_id=? ORDER BY created DESC",
+                "SELECT created,amount,id FROM balance WHERE user_id=? ORDER BY created ASC",
                 (self.id,),
             )?;
 

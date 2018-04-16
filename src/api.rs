@@ -502,6 +502,7 @@ fn coin(
         "symbol": coin.symbol,
         "rank": coin.rank,
         "price_usd": coin.price_usd,
+        "price_cny": coin.price_cny,
         "volume_usd": coin.volume_usd,
         "market_cap_usd": coin.market_cap_usd,
         "percent_change_24h": coin.percent_change_24h,
