@@ -506,7 +506,7 @@ fn coin(
         "volume_usd": coin.volume_usd,
         "market_cap_usd": coin.market_cap_usd,
         "percent_change_24h": coin.percent_change_24h,
-        "percent_change_1h": coin.percent_change_1h,
+        "percent_change_7d": coin.percent_change_7d,
         "history": history,
         "no": coin.no,
     })))
