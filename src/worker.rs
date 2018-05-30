@@ -76,36 +76,20 @@ impl Coin {
             symbol: j["symbol"].as_str().unwrap().into(),
             id: j["website_slug"].as_str().unwrap().into(),
             rank: j["rank"].as_i64().unwrap(),
-            available_supply: j["circulating_supply"]
-                .as_str()
-                .unwrap_or("0")
-                .parse()
-                .unwrap(),
-            total_supply: j["total_supply"].as_str().unwrap_or("0").parse().unwrap(),
-            max_supply: j["max_supply"].as_str().unwrap_or("0").parse().unwrap(),
+            available_supply: j["circulating_supply"].as_f64().unwrap_or(0.),
+            total_supply: j["total_supply"].as_f64().unwrap_or(0.),
+            max_supply: j["max_supply"].as_f64().unwrap_or(0.),
             price_btc: 0.,
-            price_usd: usd_quote["price"].as_str().unwrap_or("0").parse().unwrap(),
-            volume_usd: usd_quote["volume_24h"].as_str().unwrap_or("0").parse().unwrap(),
-            market_cap_usd: usd_quote["market_cap"].as_str().unwrap_or("0").parse().unwrap(),
-            percent_change_1h: usd_quote["percent_change_1h"]
-                .as_str()
-                .unwrap_or("0")
-                .parse()
-                .unwrap(),
-            percent_change_24h: usd_quote["percent_change_24h"]
-                .as_str()
-                .unwrap_or("0")
-                .parse()
-                .unwrap(),
-            percent_change_7d: usd_quote["percent_change_7d"]
-                .as_str()
-                .unwrap_or("0")
-                .parse()
-                .unwrap(),
-            price_cny: cny_quote["price"].as_str().unwrap_or("0").parse().unwrap(),
-            volume_cny: cny_quote["volume_24h"].as_str().unwrap_or("0").parse().unwrap(),
-            market_cap_cny: cny_quote["market_cap"].as_str().unwrap_or("0").parse().unwrap(),
-            last_updated: j["last_updated"].as_str().unwrap_or("0").parse().unwrap(),
+            price_usd: usd_quote["price"].as_f64().unwrap_or(0.),
+            volume_usd: usd_quote["volume_24h"].as_f64().unwrap_or(0.),
+            market_cap_usd: usd_quote["market_cap"].as_f64().unwrap_or(0.),
+            percent_change_1h: usd_quote["percent_change_1h"].as_f64().unwrap_or(0.),
+            percent_change_24h: usd_quote["percent_change_24h"].as_f64().unwrap_or(0.),
+            percent_change_7d: usd_quote["percent_change_7d"].as_f64().unwrap_or(0.),
+            price_cny: cny_quote["price"].as_f64().unwrap_or(0.),
+            volume_cny: cny_quote["volume_24h"].as_f64().unwrap_or(0.),
+            market_cap_cny: cny_quote["market_cap"].as_f64().unwrap_or(0.),
+            last_updated: j["last_updated"].as_i64().unwrap(),
         }
     }
 }
