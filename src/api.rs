@@ -530,6 +530,9 @@ fn coins(worker_state_lock: State<Arc<RwLock<worker::State>>>) -> Result<Json<Va
             "no": coin.no,
         }))
     }
+    arr.sort_by(|a, b|{
+        a["rank"].as_i64().cmp(&(b["rank"].as_i64()))
+    });
     Ok(Json(json!(arr)))
 }
 
