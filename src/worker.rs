@@ -75,7 +75,7 @@ impl Coin {
             name: j["name"].as_str().unwrap().into(),
             symbol: j["symbol"].as_str().unwrap().into(),
             id: j["website_slug"].as_str().unwrap().into(),
-            rank: j["rank"].as_str().unwrap().parse().unwrap(),
+            rank: j["rank"].as_i64().unwrap(),
             available_supply: j["circulating_supply"]
                 .as_str()
                 .unwrap_or("0")
