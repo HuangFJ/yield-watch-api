@@ -30,43 +30,6 @@ pub struct Coin {
 
 impl Coin {
     fn from_json(j: &serde_json::Value) -> Coin {
-        // Coin {
-        //     id: j["id"].as_str().unwrap().into(),
-        //     name: j["name"].as_str().unwrap().into(),
-        //     symbol: j["symbol"].as_str().unwrap().into(),
-        //     rank: j["rank"].as_str().unwrap().parse().unwrap(),
-        //     price_usd: j["price_usd"].as_str().unwrap_or("0").parse().unwrap(),
-        //     price_btc: j["price_btc"].as_str().unwrap_or("0").parse().unwrap(),
-        //     volume_usd: j["24h_volume_usd"].as_str().unwrap_or("0").parse().unwrap(),
-        //     market_cap_usd: j["market_cap_usd"].as_str().unwrap_or("0").parse().unwrap(),
-        //     available_supply: j["available_supply"]
-        //         .as_str()
-        //         .unwrap_or("0")
-        //         .parse()
-        //         .unwrap(),
-        //     total_supply: j["total_supply"].as_str().unwrap_or("0").parse().unwrap(),
-        //     max_supply: j["max_supply"].as_str().unwrap_or("0").parse().unwrap(),
-        //     percent_change_1h: j["percent_change_1h"]
-        //         .as_str()
-        //         .unwrap_or("0")
-        //         .parse()
-        //         .unwrap(),
-        //     percent_change_24h: j["percent_change_24h"]
-        //         .as_str()
-        //         .unwrap_or("0")
-        //         .parse()
-        //         .unwrap(),
-        //     percent_change_7d: j["percent_change_7d"]
-        //         .as_str()
-        //         .unwrap_or("0")
-        //         .parse()
-        //         .unwrap(),
-        //     last_updated: j["last_updated"].as_str().unwrap_or("0").parse().unwrap(),
-        //     price_cny: j["price_cny"].as_str().unwrap_or("0").parse().unwrap(),
-        //     volume_cny: j["24h_volume_cny"].as_str().unwrap_or("0").parse().unwrap(),
-        //     market_cap_cny: j["market_cap_cny"].as_str().unwrap_or("0").parse().unwrap(),
-        //     no: j["no"].as_i64().unwrap_or(0),
-        // }
         let usd_quote = &j["quotes"]["USD"];
         let cny_quote = &j["quotes"]["CNY"];
 
@@ -89,7 +52,7 @@ impl Coin {
             price_cny: cny_quote["price"].as_f64().unwrap_or(0.),
             volume_cny: cny_quote["volume_24h"].as_f64().unwrap_or(0.),
             market_cap_cny: cny_quote["market_cap"].as_f64().unwrap_or(0.),
-            last_updated: j["last_updated"].as_i64().unwrap(),
+            last_updated: j["last_updated"].as_i64().unwrap_or(0),
         }
     }
 }
@@ -144,39 +107,25 @@ pub fn refresh_rates(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<E
 }
 
 pub fn refresh_coins(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<Error>> {
-    // fetch all coins price instantly
-    // let mut value = utils::request_json(
-    //     "https://api.coinmarketcap.com/v1/ticker/?convert=CNY&limit=10000",
-    //     None,
-    // )?;
-
-    // let quick_value = utils::request_json(
-    //     "https://s2.coinmarketcap.com/generated/search/quick_search.json",
-    //     None,
-    // )?;
-
-    // let mut quick_map = HashMap::<&str, i64>::new();
-    // for row in quick_value.as_array().unwrap() {
-    //     quick_map.insert(row["slug"].as_str().unwrap(), row["id"].as_i64().unwrap());
-    // }
-
-    // for row in value.as_array_mut().unwrap() {
-    //     row["no"] = json!(quick_map.get(row["id"].as_str().unwrap()).unwrap_or(&0));
-    // }
-
-    let ret = utils::request_json(
-        "https://api.coinmarketcap.com/v2/ticker/?convert=CNY&limit=10000&sort=id&structure=array",
-        None,
-    )?;
-    let value = &ret["data"];
+    let mut start = 1;
+    let limit = 100;
+    let mut value = Vec::<serde_json::Value>::new();
+    loop {
+        let url = format!("https://api.coinmarketcap.com/v2/ticker/?convert=CNY&start={}&limit={}&sort=id&structure=array", start, limit);
+        let ret = utils::request_json(&url, None)?;
+        if ret["data"] == serde_json::Value::Null {
+            break;
+        }
+        value.extend(ret["data"].as_array().unwrap().iter().cloned());
+        start = start + limit;
+    }
 
     let mut sql_string = String::from(
         "INSERT INTO coins (id,name,symbol,rank,available_supply,total_supply,max_supply,no) VALUES ",
     );
     let mut data: Vec<Coin> = vec![];
     let mut params = vec![];
-
-    for row in value.as_array().unwrap() {
+    for row in value.iter() {
         let item = Coin::from_json(row);
         sql_string.push_str("(?,?,?,?,?,?,?,?),");
         // Vec store only similar type, so we wrap the raw type with mysql Value
@@ -210,7 +159,7 @@ pub fn refresh_coins(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<E
     }
     pool.prep_exec(
         "REPLACE INTO _cache (k,v,created) VALUES (?,?,?)",
-        ("coins", value.to_string(), time::get_time().sec),
+        ("coins", json!(value).to_string(), time::get_time().sec),
     )?;
 
     Ok(())
