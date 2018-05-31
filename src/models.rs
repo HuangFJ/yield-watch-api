@@ -448,13 +448,15 @@ impl<'a> User {
                     let (id, coin_id, amount, created): (i64, String, f64, i64) =
                         mysql::from_row(row);
                     let coin = worker_state.coins.iter().find(|&x| x.id == coin_id);
-                    states.push(UserCoin {
-                        id: id,
-                        coin_id: coin_id,
-                        amount: amount,
-                        created: created,
-                        coin: coin,
-                    });
+                    if !coin.is_none() {
+                        states.push(UserCoin {
+                            id: id,
+                            coin_id: coin_id,
+                            amount: amount,
+                            created: created,
+                            coin: coin,
+                        });
+                    }
                 }
                 Err(_) => (),
             }

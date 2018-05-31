@@ -247,14 +247,6 @@ fn states(
     for state in user_states {
         if !got_coins.contains(&state.coin_id) {
             got_coins.push(state.coin_id.clone());
-            if state.coin.is_none() {
-                rt_states_list.push(json!({
-                    "coin_id": state.coin_id,
-                    "amount": state.amount,
-                    "created": state.created,
-                }));
-                continue;
-            }
             let coin = state.coin.unwrap();
             let coin_json = json!({
                 "id": coin.id.clone(),
