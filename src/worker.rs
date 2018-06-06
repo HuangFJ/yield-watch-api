@@ -92,11 +92,11 @@ impl State {
 
 pub fn refresh_rates(pool: &Pool, lock: &Arc<RwLock<State>>) -> Result<(), Box<Error>> {
     // fetch exchange rate
-    let value = utils::request_json("https://api.fixer.io/latest?base=USD", None)?;
+    let value = utils::request_json("http://free.currencyconverterapi.com/api/v5/convert?q=USD_CNY&compact=y", None)?;
 
     {
         let mut state = lock.write().unwrap();
-        (*state).usd2cny_rate = value["rates"]["CNY"].as_f64().unwrap();
+        (*state).usd2cny_rate = value["USD_CNY"]["val"].as_f64().unwrap();
     }
     pool.prep_exec(
         "REPLACE INTO _cache (k,v,created) VALUES (?,?,?)",
