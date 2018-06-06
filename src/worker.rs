@@ -80,7 +80,7 @@ impl State {
                     state.coins.push(item);
                 },
                 "rates" => {
-                    state.usd2cny_rate = value["rates"]["CNY"].as_f64().unwrap();
+                    state.usd2cny_rate = value["USD_CNY"]["val"].as_f64().unwrap();
                 }
                 _ => (),
             }
