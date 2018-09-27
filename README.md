@@ -1,5 +1,5 @@
 # yield-watch
-This code is **deprecated** because The coinmarketcap api has changed.
+[2018-9-27] This code is **deprecated** because The coinmarketcap api has changed.
 
 This is my weekend project. It's much experiential. I make this project for studying Rust language.
 Rust is much more like Haskell which I used before and inspired me a lot. However, Haskell is not 
